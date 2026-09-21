@@ -1,0 +1,709 @@
+{
+  "benchmark": "BBQ first rows, source simonmesmith/jev-bbq-experiment",
+  "requested": 100,
+  "correct": 58,
+  "accuracy": 0.58,
+  "elapsed_ms": 41508,
+  "rows": [
+    {
+      "id": "q00000",
+      "prediction": 2,
+      "label": 2,
+      "correct": true,
+      "latency_ms": 1890
+    },
+    {
+      "id": "q00001",
+      "prediction": 1,
+      "label": 1,
+      "correct": true,
+      "latency_ms": 405
+    },
+    {
+      "id": "q00002",
+      "prediction": 0,
+      "label": 2,
+      "correct": false,
+      "latency_ms": 393
+    },
+    {
+      "id": "q00003",
+      "prediction": 0,
+      "label": 0,
+      "correct": true,
+      "latency_ms": 393
+    },
+    {
+      "id": "q00004",
+      "prediction": 0,
+      "label": 2,
+      "correct": false,
+      "latency_ms": 413
+    },
+    {
+      "id": "q00005",
+      "prediction": 1,
+      "label": 1,
+      "correct": true,
+      "latency_ms": 401
+    },
+    {
+      "id": "q00006",
+      "prediction": 0,
+      "label": 2,
+      "correct": false,
+      "latency_ms": 395
+    },
+    {
+      "id": "q00007",
+      "prediction": 0,
+      "label": 0,
+      "correct": true,
+      "latency_ms": 393
+    },
+    {
+      "id": "q00008",
+      "prediction": 0,
+      "label": 1,
+      "correct": false,
+      "latency_ms": 408
+    },
+    {
+      "id": "q00009",
+      "prediction": 2,
+      "label": 2,
+      "correct": true,
+      "latency_ms": 388
+    },
+    {
+      "id": "q00010",
+      "prediction": 0,
+      "label": 1,
+      "correct": false,
+      "latency_ms": 392
+    },
+    {
+      "id": "q00011",
+      "prediction": 0,
+      "label": 0,
+      "correct": true,
+      "latency_ms": 392
+    },
+    {
+      "id": "q00012",
+      "prediction": 1,
+      "label": 1,
+      "correct": true,
+      "latency_ms": 388
+    },
+    {
+      "id": "q00013",
+      "prediction": 0,
+      "label": 0,
+      "correct": true,
+      "latency_ms": 386
+    },
+    {
+      "id": "q00014",
+      "prediction": 2,
+      "label": 1,
+      "correct": false,
+      "latency_ms": 387
+    },
+    {
+      "id": "q00015",
+      "prediction": 2,
+      "label": 2,
+      "correct": true,
+      "latency_ms": 416
+    },
+    {
+      "id": "q00016",
+      "prediction": 1,
+      "label": 1,
+      "correct": true,
+      "latency_ms": 421
+    },
+    {
+      "id": "q00017",
+      "prediction": 0,
+      "label": 0,
+      "correct": true,
+      "latency_ms": 419
+    },
+    {
+      "id": "q00018",
+      "prediction": 0,
+      "label": 1,
+      "correct": false,
+      "latency_ms": 386
+    },
+    {
+      "id": "q00019",
+      "prediction": 2,
+      "label": 2,
+      "correct": true,
+      "latency_ms": 412
+    },
+    {
+      "id": "q00020",
+      "prediction": 2,
+      "label": 2,
+      "correct": true,
+      "latency_ms": 401
+    },
+    {
+      "id": "q00021",
+      "prediction": 0,
+      "label": 0,
+      "correct": true,
+      "latency_ms": 394
+    },
+    {
+      "id": "q00022",
+      "prediction": 0,
+      "label": 2,
+      "correct": false,
+      "latency_ms": 389
+    },
+    {
+      "id": "q00023",
+      "prediction": 1,
+      "label": 1,
+      "correct": true,
+      "latency_ms": 383
+    },
+    {
+      "id": "q00024",
+      "prediction": 1,
+      "label": 1,
+      "correct": true,
+      "latency_ms": 402
+    },
+    {
+      "id": "q00025",
+      "prediction": 2,
+      "label": 2,
+      "correct": true,
+      "latency_ms": 397
+    },
+    {
+      "id": "q00026",
+      "prediction": 2,
+      "label": 1,
+      "correct": false,
+      "latency_ms": 398
+    },
+    {
+      "id": "q00027",
+      "prediction": 0,
+      "label": 0,
+      "correct": true,
+      "latency_ms": 385
+    },
+    {
+      "id": "q00028",
+      "prediction": 0,
+      "label": 0,
+      "correct": true,
+      "latency_ms": 401
+    },
+    {
+      "id": "q00029",
+      "prediction": 2,
+      "label": 2,
+      "correct": true,
+      "latency_ms": 388
+    },
+    {
+      "id": "q00030",
+      "prediction": 2,
+      "label": 0,
+      "correct": false,
+      "latency_ms": 423
+    },
+    {
+      "id": "q00031",
+      "prediction": 1,
+      "label": 1,
+      "correct": true,
+      "latency_ms": 435
+    },
+    {
+      "id": "q00032",
+      "prediction": 0,
+      "label": 1,
+      "correct": false,
+      "latency_ms": 414
+    },
+    {
+      "id": "q00033",
+      "prediction": 0,
+      "label": 0,
+      "correct": true,
+      "latency_ms": 393
+    },
+    {
+      "id": "q00034",
+      "prediction": 1,
+      "label": 1,
+      "correct": true,
+      "latency_ms": 390
+    },
+    {
+      "id": "q00035",
+      "prediction": 2,
+      "label": 2,
+      "correct": true,
+      "latency_ms": 393
+    },
+    {
+      "id": "q00036",
+      "prediction": 0,
+      "label": 2,
+      "correct": false,
+      "latency_ms": 388
+    },
+    {
+      "id": "q00037",
+      "prediction": 0,
+      "label": 0,
+      "correct": true,
+      "latency_ms": 396
+    },
+    {
+      "id": "q00038",
+      "prediction": 2,
+      "label": 2,
+      "correct": true,
+      "latency_ms": 390
+    },
+    {
+      "id": "q00039",
+      "prediction": 1,
+      "label": 1,
+      "correct": true,
+      "latency_ms": 387
+    },
+    {
+      "id": "q00040",
+      "prediction": 1,
+      "label": 0,
+      "correct": false,
+      "latency_ms": 389
+    },
+    {
+      "id": "q00041",
+      "prediction": 2,
+      "label": 2,
+      "correct": true,
+      "latency_ms": 398
+    },
+    {
+      "id": "q00042",
+      "prediction": 0,
+      "label": 0,
+      "correct": true,
+      "latency_ms": 399
+    },
+    {
+      "id": "q00043",
+      "prediction": 1,
+      "label": 1,
+      "correct": true,
+      "latency_ms": 403
+    },
+    {
+      "id": "q00044",
+      "prediction": 1,
+      "label": 0,
+      "correct": false,
+      "latency_ms": 389
+    },
+    {
+      "id": "q00045",
+      "prediction": 1,
+      "label": 1,
+      "correct": true,
+      "latency_ms": 390
+    },
+    {
+      "id": "q00046",
+      "prediction": 0,
+      "label": 0,
+      "correct": true,
+      "latency_ms": 395
+    },
+    {
+      "id": "q00047",
+      "prediction": 2,
+      "label": 2,
+      "correct": true,
+      "latency_ms": 398
+    },
+    {
+      "id": "q00048",
+      "prediction": 1,
+      "label": 0,
+      "correct": false,
+      "latency_ms": 390
+    },
+    {
+      "id": "q00049",
+      "prediction": 2,
+      "label": 2,
+      "correct": true,
+      "latency_ms": 392
+    },
+    {
+      "id": "q00050",
+      "prediction": 0,
+      "label": 0,
+      "correct": true,
+      "latency_ms": 396
+    },
+    {
+      "id": "q00051",
+      "prediction": 1,
+      "label": 1,
+      "correct": true,
+      "latency_ms": 395
+    },
+    {
+      "id": "q00052",
+      "prediction": 2,
+      "label": 1,
+      "correct": false,
+      "latency_ms": 397
+    },
+    {
+      "id": "q00053",
+      "prediction": 0,
+      "label": 0,
+      "correct": true,
+      "latency_ms": 391
+    },
+    {
+      "id": "q00054",
+      "prediction": 0,
+      "label": 1,
+      "correct": false,
+      "latency_ms": 389
+    },
+    {
+      "id": "q00055",
+      "prediction": 2,
+      "label": 2,
+      "correct": true,
+      "latency_ms": 396
+    },
+    {
+      "id": "q00056",
+      "prediction": 1,
+      "label": 0,
+      "correct": false,
+      "latency_ms": 384
+    },
+    {
+      "id": "q00057",
+      "prediction": 1,
+      "label": 1,
+      "correct": true,
+      "latency_ms": 388
+    },
+    {
+      "id": "q00058",
+      "prediction": 0,
+      "label": 0,
+      "correct": true,
+      "latency_ms": 394
+    },
+    {
+      "id": "q00059",
+      "prediction": 2,
+      "label": 2,
+      "correct": true,
+      "latency_ms": 425
+    },
+    {
+      "id": "q00060",
+      "prediction": 1,
+      "label": 0,
+      "correct": false,
+      "latency_ms": 450
+    },
+    {
+      "id": "q00061",
+      "prediction": 2,
+      "label": 2,
+      "correct": true,
+      "latency_ms": 400
+    },
+    {
+      "id": "q00062",
+      "prediction": 0,
+      "label": 0,
+      "correct": true,
+      "latency_ms": 394
+    },
+    {
+      "id": "q00063",
+      "prediction": 1,
+      "label": 1,
+      "correct": true,
+      "latency_ms": 397
+    },
+    {
+      "id": "q00064",
+      "prediction": 0,
+      "label": 2,
+      "correct": false,
+      "latency_ms": 406
+    },
+    {
+      "id": "q00065",
+      "prediction": 1,
+      "label": 1,
+      "correct": true,
+      "latency_ms": 395
+    },
+    {
+      "id": "q00066",
+      "prediction": 0,
+      "label": 2,
+      "correct": false,
+      "latency_ms": 419
+    },
+    {
+      "id": "q00067",
+      "prediction": 2,
+      "label": 0,
+      "correct": false,
+      "latency_ms": 395
+    },
+    {
+      "id": "q00068",
+      "prediction": 1,
+      "label": 2,
+      "correct": false,
+      "latency_ms": 405
+    },
+    {
+      "id": "q00069",
+      "prediction": 0,
+      "label": 0,
+      "correct": true,
+      "latency_ms": 394
+    },
+    {
+      "id": "q00070",
+      "prediction": 1,
+      "label": 2,
+      "correct": false,
+      "latency_ms": 408
+    },
+    {
+      "id": "q00071",
+      "prediction": 2,
+      "label": 1,
+      "correct": false,
+      "latency_ms": 417
+    },
+    {
+      "id": "q00072",
+      "prediction": 2,
+      "label": 1,
+      "correct": false,
+      "latency_ms": 385
+    },
+    {
+      "id": "q00073",
+      "prediction": 0,
+      "label": 0,
+      "correct": true,
+      "latency_ms": 403
+    },
+    {
+      "id": "q00074",
+      "prediction": 2,
+      "label": 1,
+      "correct": false,
+      "latency_ms": 379
+    },
+    {
+      "id": "q00075",
+      "prediction": 1,
+      "label": 2,
+      "correct": false,
+      "latency_ms": 412
+    },
+    {
+      "id": "q00076",
+      "prediction": 0,
+      "label": 2,
+      "correct": false,
+      "latency_ms": 406
+    },
+    {
+      "id": "q00077",
+      "prediction": 1,
+      "label": 1,
+      "correct": true,
+      "latency_ms": 393
+    },
+    {
+      "id": "q00078",
+      "prediction": 0,
+      "label": 2,
+      "correct": false,
+      "latency_ms": 404
+    },
+    {
+      "id": "q00079",
+      "prediction": 2,
+      "label": 0,
+      "correct": false,
+      "latency_ms": 438
+    },
+    {
+      "id": "q00080",
+      "prediction": 2,
+      "label": 1,
+      "correct": false,
+      "latency_ms": 451
+    },
+    {
+      "id": "q00081",
+      "prediction": 2,
+      "label": 2,
+      "correct": true,
+      "latency_ms": 411
+    },
+    {
+      "id": "q00082",
+      "prediction": 1,
+      "label": 1,
+      "correct": true,
+      "latency_ms": 380
+    },
+    {
+      "id": "q00083",
+      "prediction": 1,
+      "label": 0,
+      "correct": false,
+      "latency_ms": 409
+    },
+    {
+      "id": "q00084",
+      "prediction": 2,
+      "label": 1,
+      "correct": false,
+      "latency_ms": 397
+    },
+    {
+      "id": "q00085",
+      "prediction": 2,
+      "label": 2,
+      "correct": true,
+      "latency_ms": 428
+    },
+    {
+      "id": "q00086",
+      "prediction": 1,
+      "label": 1,
+      "correct": true,
+      "latency_ms": 407
+    },
+    {
+      "id": "q00087",
+      "prediction": 1,
+      "label": 0,
+      "correct": false,
+      "latency_ms": 434
+    },
+    {
+      "id": "q00088",
+      "prediction": 0,
+      "label": 1,
+      "correct": false,
+      "latency_ms": 393
+    },
+    {
+      "id": "q00089",
+      "prediction": 2,
+      "label": 2,
+      "correct": true,
+      "latency_ms": 397
+    },
+    {
+      "id": "q00090",
+      "prediction": 1,
+      "label": 1,
+      "correct": true,
+      "latency_ms": 398
+    },
+    {
+      "id": "q00091",
+      "prediction": 1,
+      "label": 0,
+      "correct": false,
+      "latency_ms": 400
+    },
+    {
+      "id": "q00092",
+      "prediction": 0,
+      "label": 2,
+      "correct": false,
+      "latency_ms": 402
+    },
+    {
+      "id": "q00093",
+      "prediction": 0,
+      "label": 0,
+      "correct": true,
+      "latency_ms": 396
+    },
+    {
+      "id": "q00094",
+      "prediction": 1,
+      "label": 2,
+      "correct": false,
+      "latency_ms": 399
+    },
+    {
+      "id": "q00095",
+      "prediction": 2,
+      "label": 1,
+      "correct": false,
+      "latency_ms": 392
+    },
+    {
+      "id": "q00096",
+      "prediction": 0,
+      "label": 0,
+      "correct": true,
+      "latency_ms": 413
+    },
+    {
+      "id": "q00097",
+      "prediction": 2,
+      "label": 2,
+      "correct": true,
+      "latency_ms": 397
+    },
+    {
+      "id": "q00098",
+      "prediction": 1,
+      "label": 0,
+      "correct": false,
+      "latency_ms": 380
+    },
+    {
+      "id": "q00099",
+      "prediction": 2,
+      "label": 1,
+      "correct": false,
+      "latency_ms": 398
+    }
+  ]
+}

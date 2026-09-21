@@ -2,7 +2,7 @@
 
 A single-user, local-only System One-style decision API backed directly by Apple's on-device Foundation Models API.
 
-It implements TypeSafe's public request and answer shapes for `Choice`, `Noul`, and `Score`, but it is **not** Jev: FM's distributions are generated text constrained by JSON Schema, and its `confidence` is an entropy-derived heuristic rather than a calibrated probability.
+It implements TypeSafe's public request and answer shapes for `Choice`, `Noul`, and `Score`, but it is **not** Jev: it uses greedy, native constrained decisions and emits point-estimate distributions rather than calibrated probabilities.
 
 ## Run
 
