@@ -16,6 +16,8 @@ test("rejects invalid TypeSafe shapes", () => {
   assert.throws(() => validateRequest({ model: "jev-latest", state: "x", questions: { route: { type: "choice", instructions: "x", criteria: {} } } }));
   assert.throws(() => validateRequest({ model: "jev-latest", state: "x", questions: { score: { type: "score", instructions: "x", criteria: ["only one"] } } }));
   assert.throws(() => validateRequest({ state: "x", questions }));
+  const tooMany = Object.fromEntries(Array.from({ length: 27 }, (_, index) => [`opt${index}`, `label ${index}`]));
+  assert.throws(() => validateRequest({ model: "jev-latest", state: "x", questions: { route: { type: "choice", instructions: "x", criteria: tooMany } } }));
 });
 test("returns Jev-shaped answers", () => {
   const answers = decorateAnswers({ route: { probabilities: { billing: 0.8, support: 0.2 } }, escalate: { noul: 0.7 }, urgency: { probabilities: { 0: 0, 1: 0.2, 2: 0.7, 3: 0.1 } } }, questions);

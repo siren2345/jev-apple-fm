@@ -36,7 +36,7 @@ function validateQuestion(name, question) {
   if (!isRecord(question) || !["choice", "noul", "score"].includes(question.type)) throw new Error(`questions.${name}.type must be choice, noul, or score`);
   if (!isStructured(question.instructions)) throw new Error(`questions.${name}.instructions is required and must be string, object, or array`);
   if (question.type === "choice") {
-    if (!isRecord(question.criteria) || optionKeys(question).length < 1 || optionKeys(question).length > 255) throw new Error(`questions.${name}.criteria must be an option map with 1 to 255 options`);
+    if (!isRecord(question.criteria) || optionKeys(question).length < 1 || optionKeys(question).length > 26) throw new Error(`questions.${name}.criteria must be an option map with 1 to 26 options`);
   }
   if (question.type === "score" && (!Array.isArray(question.criteria) || question.criteria.length < 2 || question.criteria.length > 10 || !question.criteria.every(isStructured))) throw new Error(`questions.${name}.criteria must be an ordered array of 2 to 10 levels`);
   if (question.type === "noul" && question.criteria !== undefined && (!isRecord(question.criteria) || !["true", "false"].every((key) => question.criteria[key] === undefined || isStructured(question.criteria[key])))) throw new Error(`questions.${name}.criteria must be an object with optional true and false descriptions`);
@@ -204,7 +204,7 @@ export function formatInstructions(value) {
   return formatOption(value);
 }
 export function letterOptions(criteria) {
-  return Object.keys(criteria).map((key, index) => ({ letter: index < 26 ? choiceLetters[index] : `Z${index}`, key, text: formatOption(criteria[key]) }));
+  return Object.keys(criteria).map((key, index) => ({ letter: choiceLetters[index], key, text: formatOption(criteria[key]) }));
 }
 export function decisionQuestions(questions) {
   return Object.fromEntries(Object.entries(questions).map(([name, question]) => {
@@ -253,7 +253,7 @@ async function decide(payload, bodyBytes) {
     return [name, { type: "score", score: Number(choice), legend, probabilities, confidence: 1 }];
   }));
   const performanceMetrics = { request_bytes: bodyBytes, state_bytes: budget.stats.original_bytes, budgeted_state_bytes: budget.stats.budgeted_bytes, state_truncated: budget.stats.truncated, omitted_array_items: budget.stats.omitted_array_items, worker_ms: Number(workerMs.toFixed(3)), worker_round_trip_ms: Number(roundTripMs.toFixed(3)), worker_queue_ms: Number(Math.max(0, roundTripMs - workerMs).toFixed(3)), ...questionMetrics(payload.questions) };
-  return { model: "jev-local-fm-0.8", answers: nativeAnswers, usage: { input_tokens: 0, output_tokens: 0 }, metadata: { provider: "Apple Foundation Models native greedy decisions", confidence: "All probabilities are greedy point estimates, not Jev-calibrated", performance: performanceMetrics } };
+  return { model: "jev-local-fm-0.9", answers: nativeAnswers, usage: { input_tokens: 0, output_tokens: 0 }, metadata: { provider: "Apple Foundation Models native greedy decisions", confidence: "All probabilities are greedy point estimates, not Jev-calibrated", performance: performanceMetrics } };
 }
 
 export const server = http.createServer(async (request, response) => {

@@ -16,7 +16,7 @@ This is a shape-compatible local experiment, not a TypeSafe Jev replacement. Typ
 - `GET /health`: local health check.
 - `benchmark_request.mjs`: repeat a Jev-shaped fixture and report latency percentiles.
 
-The API receives all questions in one request and generates a constrained, simultaneous decision frame. Internally it uses `DynamicGenerationSchema` plus greedy decoding, so a returned Choice is guaranteed to be one of the submitted criteria keys. The worker follows the same chat split as [jev-single-decode](https://github.com/siren2345/jev-single-decode): `LanguageModelSession` instructions carry `state`, and the user turn lists options as `A.` / `B.` / `C.` and ends with `Answer:`. HTTP criteria keys are unchanged; the letter mapping is internal. A single-question request constrains the native output to one letter instead of a JSON object.
+The API receives all questions in one request and generates a constrained, simultaneous decision frame. Internally it uses `DynamicGenerationSchema` plus greedy decoding, so a returned Choice is guaranteed to be one of the submitted criteria keys. Choice is limited to 26 options (`A`–`Z`). The worker reuses a `LanguageModelSession` for a short run of requests: instructions are a fixed role, and `state` goes in the user prompt. Consecutive requests can see prior turns until the worker starts a fresh session. HTTP criteria keys are unchanged. A single-question request constrains the native output to one letter instead of a JSON object.
 
 ## Requirements
 
@@ -76,7 +76,7 @@ The response preserves question names and Choice criteria keys:
 
 ```json
 {
-  "model": "jev-local-fm-0.8",
+  "model": "jev-local-fm-0.9",
   "answers": {
     "route": {"type": "choice", "choice": "billing", "probabilities": {"billing": 1, "technical_support": 0, "general": 0}, "confidence": 1},
     "escalate": {"type": "noul", "noul": 1},
@@ -91,7 +91,7 @@ The response preserves question names and Choice criteria keys:
 | --- | --- |
 | `POST /v1/systemone` | Supported |
 | `POST /v1/decide` | Supported alias |
-| `choice` (1–255 criteria keys) | Supported |
+| `choice` (1–26 criteria keys) | Supported |
 | `noul` | Supported as a greedy 0 or 1 decision |
 | `score` (2–10 ordered levels) | Supported as a greedy one-hot score |
 | Calibrated probabilities | Not supported |
@@ -130,7 +130,7 @@ npm run eval -- bbq --limit 100 --out results/bbq-100.json
 
 The latency script prints p50/p95 without saving request content. `npm run eval` scores labeled cases over HTTP: `tickets` is five TypeSafe-style routing/noul items, `bbq` is the first 100 Age questions from [simonmesmith/jev-bbq-experiment](https://github.com/simonmesmith/jev-bbq-experiment) (50 ambiguous, 50 disambiguated). Use `--limit` for a faster loop. `--vs https://api.typesafe.ai/v1/systemone` compares against TypeSafe when `JEV_API_KEY` is set. Set `JEV_LOCAL_URL` to point either script at another local endpoint.
 
-BBQ Age first-100, failures counted as wrong: classify-only 0.58, compare-then-choose 0.65, A/B/C in a JSON object 0.74, single-letter schema **0.76** (ambiguous 0.70, disambiguated 0.82, p50 259 ms). An extra uncertainty veto reached 0.82 overall but cut disambiguated accuracy to 0.74, so it was reverted. Re-run `npm run eval -- bbq --limit 100` after prompt changes.
+BBQ Age first-100, failures counted as wrong: single-letter schema with a fresh session **0.76** (ambiguous 0.70, disambiguated 0.82). Reusing a session for 8 turns dropped that to **0.53** (ambiguous 0.16, disambiguated 0.90) because earlier answers leak. Set `JEV_SESSION_TURNS=1` for isolated eval. Re-run `npm run eval -- bbq --limit 100` after prompt changes.
 
 Current small-fixture baseline (before the compare-then-choose prompt): warm worker inference was approximately 719–752 ms for a 630-byte request with four questions and eight options. A 23,659-byte nested-state fixture dropped from about 5.1 s unbudgeted to 865–877 ms after the generic state budget. The same Doom encounter that previously died before a second 10.4 s decision then completed eight decisions at 1.67–2.29 s and scored one kill; it still died. After the compare-then-choose prompt and a system/user split (`state` in session instructions, questions in the user turn), a seed-1 2048 opening matched TypeSafe Jev's first move (`left` instead of a stuck `up`) at about 3–6 s per move. See [`results/`](results/) for methodology; results depend on request size, macOS version, and hardware.
 

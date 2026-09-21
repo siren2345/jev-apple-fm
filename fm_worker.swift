@@ -12,6 +12,19 @@ func emit(_ value: Any) {
     FileHandle.standardOutput.write(Data("\n".utf8))
 }
 
+func envInt(_ name: String, _ fallback: Int) -> Int {
+    guard let raw = ProcessInfo.processInfo.environment[name], let value = Int(raw), value > 0 else { return fallback }
+    return value
+}
+
+let roleInstructions = """
+You are a multiple-choice decision function.
+Pick exactly one letter from Options.
+Use only STATE in the user message.
+If STATE does not determine the answer, pick the uncertainty option.
+Do not use world knowledge or stereotypes.
+"""
+
 func options(from question: [String: Any]) throws -> [(letter: String, text: String)] {
     guard let items = question["options"] as? [[String: Any]], !items.isEmpty else {
         throw NSError(domain: "fm-worker", code: 1, userInfo: [NSLocalizedDescriptionKey: "Each question needs non-empty A-Z options"])
@@ -24,8 +37,8 @@ func options(from question: [String: Any]) throws -> [(letter: String, text: Str
     }
 }
 
-func userPrompt(questions: [String: [String: Any]], names: [String]) throws -> String {
-    var lines: [String] = []
+func userPrompt(state: Any, questions: [String: [String: Any]], names: [String]) throws -> String {
+    var lines: [String] = ["STATE:", try jsonString(state), ""]
     for name in names {
         guard let question = questions[name] else { continue }
         let instructions = question["instructions"] as? String ?? ""
@@ -48,24 +61,17 @@ func letter(from content: GeneratedContent, allowed: [String]) throws -> String 
     throw NSError(domain: "fm-worker", code: 1, userInfo: [NSLocalizedDescriptionKey: "native decision returned an invalid option"])
 }
 
-func decide(_ request: [String: Any], model: SystemLanguageModel) async throws -> [String: String] {
-    guard let questionData = request["questions"] as? [String: [String: Any]], !questionData.isEmpty else {
-        throw NSError(domain: "fm-worker", code: 1, userInfo: [NSLocalizedDescriptionKey: "Expected non-empty questions"])
-    }
-    let names = questionData.keys.sorted()
-    let prompt = try userPrompt(questions: questionData, names: names)
-    // Fresh transcript per request preserves the HTTP API's stateless semantics.
-    let session = LanguageModelSession(model: model, instructions: try jsonString(request["state"] ?? ""))
+func generate(session: LanguageModelSession, prompt: String, questions: [String: [String: Any]], names: [String]) async throws -> [String: String] {
     if names.count == 1 {
         let name = names[0]
-        let letters = try options(from: questionData[name] ?? [:]).map(\.letter)
+        let letters = try options(from: questions[name] ?? [:]).map(\.letter)
         let schema = try GenerationSchema(root: DynamicGenerationSchema(name: "Answer", description: "The letter of the chosen option.", anyOf: letters), dependencies: [])
         let response = try await session.respond(to: prompt, schema: schema, includeSchemaInPrompt: false, options: GenerationOptions(sampling: .greedy))
         return [name: try letter(from: response.content, allowed: letters)]
     }
     var properties: [DynamicGenerationSchema.Property] = []
     for name in names {
-        let letters = try options(from: questionData[name] ?? [:]).map(\.letter)
+        let letters = try options(from: questions[name] ?? [:]).map(\.letter)
         properties.append(.init(name: name, description: "The letter of the chosen option.", schema: DynamicGenerationSchema(type: String.self, guides: [.anyOf(letters)])))
     }
     let schema = try GenerationSchema(root: DynamicGenerationSchema(name: "DecisionFrame", description: "One option letter per question.", properties: properties), dependencies: [])
@@ -78,19 +84,43 @@ struct FMWorker {
     static func main() async {
         let model = SystemLanguageModel()
         guard model.isAvailable else { emit(["id": "startup", "error": "Foundation Models unavailable"]); return }
-        LanguageModelSession(model: model, instructions: "{}").prewarm()
+        let maxTurns = envInt("JEV_SESSION_TURNS", 8)
+        var session: LanguageModelSession?
+        var turns = 0
+        func freshSession() -> LanguageModelSession {
+            let next = LanguageModelSession(model: model, instructions: roleInstructions)
+            next.prewarm()
+            session = next
+            turns = 0
+            return next
+        }
+        _ = freshSession()
         while let line = readLine() {
             guard let data = line.data(using: .utf8), let request = try? JSONSerialization.jsonObject(with: data) as? [String: Any], let id = request["id"] as? String else {
                 emit(["id": "unknown", "error": "Invalid JSONL request"]); continue
             }
+            guard let questionData = request["questions"] as? [String: [String: Any]], !questionData.isEmpty else {
+                emit(["id": id, "error": "Expected non-empty questions"]); continue
+            }
+            let names = questionData.keys.sorted()
             let started = ContinuousClock.now
             do {
-                let choices = try await decide(request, model: model)
+                let prompt = try userPrompt(state: request["state"] ?? "", questions: questionData, names: names)
+                if turns >= maxTurns { _ = freshSession() }
+                let active = session ?? freshSession()
+                let choices: [String: String]
+                do {
+                    choices = try await generate(session: active, prompt: prompt, questions: questionData, names: names)
+                } catch {
+                    let retry = freshSession()
+                    choices = try await generate(session: retry, prompt: prompt, questions: questionData, names: names)
+                }
+                turns += 1
                 let duration = started.duration(to: .now).components
                 let elapsed = Double(duration.seconds) * 1_000 + Double(duration.attoseconds) / 1e15
                 emit(["id": id, "choices": choices, "worker_ms": elapsed])
             }
-            catch { emit(["id": id, "error": error.localizedDescription]) }
+            catch { session = nil; turns = 0; emit(["id": id, "error": error.localizedDescription]) }
         }
     }
 }
