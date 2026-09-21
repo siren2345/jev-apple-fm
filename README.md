@@ -16,7 +16,7 @@ This is a shape-compatible local experiment, not a TypeSafe Jev replacement. Typ
 - `GET /health`: local health check.
 - `benchmark_request.mjs`: repeat a Jev-shaped fixture and report latency percentiles.
 
-The API receives all questions in one request and generates a constrained, simultaneous decision frame. Internally it uses `DynamicGenerationSchema` plus greedy decoding, so a returned Choice is guaranteed to be one of the submitted criteria keys. The worker writes a short option comparison first, then picks identifiers, which improved 2048 first-move agreement with TypeSafe Jev at the cost of extra latency.
+The API receives all questions in one request and generates a constrained, simultaneous decision frame. Internally it uses `DynamicGenerationSchema` plus greedy decoding, so a returned Choice is guaranteed to be one of the submitted criteria keys. The worker follows the same chat split as [jev-single-decode](https://github.com/siren2345/jev-single-decode): `LanguageModelSession` instructions carry `state`, and the user turn carries the questions. It also writes a short option comparison before picking identifiers.
 
 ## Requirements
 
@@ -76,7 +76,7 @@ The response preserves question names and Choice criteria keys:
 
 ```json
 {
-  "model": "jev-local-fm-0.5",
+  "model": "jev-local-fm-0.6",
   "answers": {
     "route": {"type": "choice", "choice": "billing", "probabilities": {"billing": 1, "technical_support": 0, "general": 0}, "confidence": 1},
     "escalate": {"type": "noul", "noul": 1},
@@ -127,7 +127,7 @@ npm run benchmark -- fixtures/large-nested-state.json 3
 
 The script prints p50/p95 end-to-end, worker, and queue latency without saving request content. Set `JEV_LOCAL_URL` to point it at another local endpoint.
 
-Current small-fixture baseline (before the compare-then-choose prompt): warm worker inference was approximately 719–752 ms for a 630-byte request with four questions and eight options. A 23,659-byte nested-state fixture dropped from about 5.1 s unbudgeted to 865–877 ms after the generic state budget. The same Doom encounter that previously died before a second 10.4 s decision then completed eight decisions at 1.67–2.29 s and scored one kill; it still died. After the compare-then-choose prompt, a seed-1 2048 opening matched TypeSafe Jev's first move (`left` instead of a stuck `up`) at about 3.3–5.9 s per move. See [`results/`](results/) for methodology; results depend on request size, macOS version, and hardware.
+Current small-fixture baseline (before the compare-then-choose prompt): warm worker inference was approximately 719–752 ms for a 630-byte request with four questions and eight options. A 23,659-byte nested-state fixture dropped from about 5.1 s unbudgeted to 865–877 ms after the generic state budget. The same Doom encounter that previously died before a second 10.4 s decision then completed eight decisions at 1.67–2.29 s and scored one kill; it still died. After the compare-then-choose prompt and a system/user split (`state` in session instructions, questions in the user turn), a seed-1 2048 opening matched TypeSafe Jev's first move (`left` instead of a stuck `up`) at about 3–6 s per move. See [`results/`](results/) for methodology; results depend on request size, macOS version, and hardware.
 
 ## Development
 
