@@ -40,21 +40,36 @@ func userPrompt(questions: [String: [String: Any]], names: [String]) throws -> S
     return lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
 }
 
+func letter(from content: GeneratedContent, allowed: [String]) throws -> String {
+    if let value = try? content.value(String.self), allowed.contains(value) { return value }
+    if case .string(let value) = content.kind, allowed.contains(value) { return value }
+    let trimmed = content.jsonString.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+    if allowed.contains(trimmed) { return trimmed }
+    throw NSError(domain: "fm-worker", code: 1, userInfo: [NSLocalizedDescriptionKey: "native decision returned an invalid option"])
+}
+
 func decide(_ request: [String: Any], model: SystemLanguageModel) async throws -> [String: String] {
     guard let questionData = request["questions"] as? [String: [String: Any]], !questionData.isEmpty else {
         throw NSError(domain: "fm-worker", code: 1, userInfo: [NSLocalizedDescriptionKey: "Expected non-empty questions"])
     }
     let names = questionData.keys.sorted()
+    let prompt = try userPrompt(questions: questionData, names: names)
+    // Fresh transcript per request preserves the HTTP API's stateless semantics.
+    let session = LanguageModelSession(model: model, instructions: try jsonString(request["state"] ?? ""))
+    if names.count == 1 {
+        let name = names[0]
+        let letters = try options(from: questionData[name] ?? [:]).map(\.letter)
+        let schema = try GenerationSchema(root: DynamicGenerationSchema(name: "Answer", description: "The letter of the chosen option.", anyOf: letters), dependencies: [])
+        let response = try await session.respond(to: prompt, schema: schema, includeSchemaInPrompt: false, options: GenerationOptions(sampling: .greedy))
+        return [name: try letter(from: response.content, allowed: letters)]
+    }
     var properties: [DynamicGenerationSchema.Property] = []
     for name in names {
         let letters = try options(from: questionData[name] ?? [:]).map(\.letter)
         properties.append(.init(name: name, description: "The letter of the chosen option.", schema: DynamicGenerationSchema(type: String.self, guides: [.anyOf(letters)])))
     }
     let schema = try GenerationSchema(root: DynamicGenerationSchema(name: "DecisionFrame", description: "One option letter per question.", properties: properties), dependencies: [])
-    // Fresh transcript per request preserves the HTTP API's stateless semantics.
-    // Internal A/B/C prompt; HTTP criteria keys are mapped back by the Node layer.
-    let session = LanguageModelSession(model: model, instructions: try jsonString(request["state"] ?? ""))
-    let response = try await session.respond(to: try userPrompt(questions: questionData, names: names), schema: schema, options: GenerationOptions(sampling: .greedy))
+    let response = try await session.respond(to: prompt, schema: schema, options: GenerationOptions(sampling: .greedy))
     return try Dictionary(uniqueKeysWithValues: names.map { name in (name, try response.content.value(forProperty: name) as String) })
 }
 
