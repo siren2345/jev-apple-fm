@@ -15,9 +15,10 @@ The controller was given an optional local endpoint override only for this exper
 | TypeSafe Jev | 733 ms (later calls mostly 236--487 ms) | 4 kills, 0 enemies, HP 27, armor 68 |
 | Local Foundation Models adapter, four independent model processes | exceeded the controller's 6 s deadline | fallback control, 0 kills, death |
 | Local Foundation Models adapter, one batched model session | 10,226 ms | 0 kills, death before the second decision |
+| Local Foundation Models adapter, persistent prewarmed worker | 10,400 ms | 0 kills, death before the second decision |
 
 ## Conclusion
 
-The local adapter accepted and answered the same Jev-shaped four-axis request, but it is not yet viable for this real-time Doom controller. The decisive gap is end-to-end latency on the full structured game state, not schema compatibility: even the batched native session was about 14x slower than the observed first Jev call and arrived too late to prevent death.
+The local adapter accepted and answered the same Jev-shaped four-axis request, but it is not yet viable for this real-time Doom controller. The decisive gap is end-to-end latency on the full structured game state, not schema compatibility: even the batched native session was about 14x slower than the observed first Jev call and arrived too late to prevent death. Keeping the process and model resources warm improved small requests but did not reduce this full-state workload (10.400 s), which shows that native inference over the supplied state dominates rather than process startup.
 
 The controller's ordinary 6 s deadline was extended to 15 s only for the batched local observation. The external demo code and its local override were not committed to this repository.
