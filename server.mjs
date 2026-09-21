@@ -206,6 +206,16 @@ export function formatInstructions(value) {
 export function letterOptions(criteria) {
   return Object.keys(criteria).map((key, index) => ({ letter: index < 26 ? choiceLetters[index] : `Z${index}`, key, text: formatOption(criteria[key]) }));
 }
+const uncertaintyPattern = /\b(can't be determined|cannot be determined|undetermined|not known|not enough information|can't tell|cannot tell|insufficient information|unknown)\b/i;
+export function uncertaintyKey(criteria) {
+  if (!isRecord(criteria)) return null;
+  for (const [key, value] of Object.entries(criteria)) {
+    const text = typeof value === "string" ? value : JSON.stringify(value);
+    if (uncertaintyPattern.test(text) || uncertaintyPattern.test(key)) return key;
+  }
+  return null;
+}
+const uncertaintyGateEnabled = process.env.JEV_UNCERTAINTY_GATE !== "off";
 export function decisionQuestions(questions) {
   return Object.fromEntries(Object.entries(questions).map(([name, question]) => {
     const criteria = question.type === "choice"
@@ -221,16 +231,38 @@ const nativeWorker = new NativeDecisionWorker();
 function questionMetrics(questions) {
   return { question_count: Object.keys(questions).length, option_count: Object.values(questions).reduce((total, question) => total + (question.type === "choice" ? Object.keys(question.criteria).length : question.type === "score" ? question.criteria.length : 2), 0) };
 }
-async function decide(payload, bodyBytes) {
-  const budget = budgetState(payload.state);
-  const { choices, workerMs, roundTripMs } = await nativeWorker.decide({ ...payload, state: budget.state });
-  const expected = decisionQuestions(payload.questions);
+function decodeLetters(choices, questions) {
+  const expected = decisionQuestions(questions);
   if (!isRecord(choices) || Object.keys(choices).length !== Object.keys(expected).length) throw new Error("native decision returned an invalid option");
   const decoded = {};
   for (const [name, question] of Object.entries(expected)) {
     const option = question.options.find((entry) => entry.letter === choices[name]);
     if (!option) throw new Error("native decision returned an invalid option");
     decoded[name] = option.key;
+  }
+  return decoded;
+}
+async function chooseKeys(state, questions) {
+  const { choices, workerMs, roundTripMs } = await nativeWorker.decide({ state, questions });
+  return { keys: decodeLetters(choices, questions), workerMs, roundTripMs };
+}
+async function decide(payload, bodyBytes) {
+  const budget = budgetState(payload.state);
+  const first = await chooseKeys(budget.state, payload.questions);
+  const decoded = { ...first.keys };
+  let workerMs = first.workerMs;
+  let roundTripMs = first.roundTripMs;
+  let gatedUnknown = 0;
+  if (uncertaintyGateEnabled) {
+    for (const [name, question] of Object.entries(payload.questions)) {
+      const unknown = question.type === "choice" ? uncertaintyKey(question.criteria) : null;
+      if (!unknown || decoded[name] === unknown) continue;
+      const picked = formatOption(question.criteria[decoded[name]]);
+      const gate = await chooseKeys(budget.state, { determined: { type: "choice", instructions: `${formatInstructions(question.instructions)}\n\nSelected answer: ${picked}\nDoes the passage support this selection without outside knowledge? If the passage does not identify it, choose no.`, criteria: { yes: "The passage supports this answer.", no: "The passage does not support it; the uncertainty option is correct." } } });
+      workerMs += gate.workerMs;
+      roundTripMs += gate.roundTripMs;
+      if (gate.keys.determined === "no") { decoded[name] = unknown; gatedUnknown += 1; }
+    }
   }
   const nativeAnswers = Object.fromEntries(Object.entries(payload.questions).map(([name, question]) => {
     const criteria = question.type === "choice"
@@ -245,8 +277,8 @@ async function decide(payload, bodyBytes) {
     const legend = Object.fromEntries(question.criteria.map((level, index) => [String(index), typeof level === "string" ? level : JSON.stringify(level)]));
     return [name, { type: "score", score: Number(choice), legend, probabilities, confidence: 1 }];
   }));
-  const performanceMetrics = { request_bytes: bodyBytes, state_bytes: budget.stats.original_bytes, budgeted_state_bytes: budget.stats.budgeted_bytes, state_truncated: budget.stats.truncated, omitted_array_items: budget.stats.omitted_array_items, worker_ms: workerMs, worker_round_trip_ms: roundTripMs, worker_queue_ms: Number(Math.max(0, roundTripMs - workerMs).toFixed(3)), ...questionMetrics(payload.questions) };
-  return { model: "jev-local-fm-0.7", answers: nativeAnswers, usage: { input_tokens: 0, output_tokens: 0 }, metadata: { provider: "Apple Foundation Models native greedy decisions", confidence: "All probabilities are greedy point estimates, not Jev-calibrated", performance: performanceMetrics } };
+  const performanceMetrics = { request_bytes: bodyBytes, state_bytes: budget.stats.original_bytes, budgeted_state_bytes: budget.stats.budgeted_bytes, state_truncated: budget.stats.truncated, omitted_array_items: budget.stats.omitted_array_items, uncertainty_gated: gatedUnknown, worker_ms: Number(workerMs.toFixed(3)), worker_round_trip_ms: Number(roundTripMs.toFixed(3)), worker_queue_ms: Number(Math.max(0, roundTripMs - workerMs).toFixed(3)), ...questionMetrics(payload.questions) };
+  return { model: "jev-local-fm-0.8", answers: nativeAnswers, usage: { input_tokens: 0, output_tokens: 0 }, metadata: { provider: "Apple Foundation Models native greedy decisions", confidence: "All probabilities are greedy point estimates, not Jev-calibrated", performance: performanceMetrics } };
 }
 
 export const server = http.createServer(async (request, response) => {
