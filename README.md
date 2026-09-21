@@ -125,7 +125,7 @@ npm run benchmark -- fixtures/large-nested-state.json 3
 
 The script prints p50/p95 end-to-end, worker, and queue latency without saving request content. Set `JEV_LOCAL_URL` to point it at another local endpoint.
 
-Current small-fixture baseline: warm worker inference was approximately 719–752 ms for a 630-byte request with four questions and eight options. A 23,659-byte nested-state fixture dropped from about 5.1 s unbudgeted to 865–877 ms after the generic state budget (23,167 → 1,382 state bytes). See [`results/`](results/) for methodology; results depend on request size, macOS version, and hardware.
+Current small-fixture baseline: warm worker inference was approximately 719–752 ms for a 630-byte request with four questions and eight options. A 23,659-byte nested-state fixture dropped from about 5.1 s unbudgeted to 865–877 ms after the generic state budget (23,167 → 1,382 state bytes). The same Doom encounter that previously died before a second 10.4 s decision then completed eight decisions at 1.67–2.29 s and scored one kill; it still died. See [`results/`](results/) for methodology; results depend on request size, macOS version, and hardware.
 
 ## Development
 

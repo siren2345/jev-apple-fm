@@ -16,9 +16,12 @@ The controller was given an optional local endpoint override only for this exper
 | Local Foundation Models adapter, four independent model processes | exceeded the controller's 6 s deadline | fallback control, 0 kills, death |
 | Local Foundation Models adapter, one batched model session | 10,226 ms | 0 kills, death before the second decision |
 | Local Foundation Models adapter, persistent prewarmed worker | 10,400 ms | 0 kills, death before the second decision |
+| Local Foundation Models adapter, persistent worker plus generic state budget | 2,288 ms (later 1,671--1,911 ms) | 1 kill, death after 8 decisions, HP -1, armor 54, 2 enemies remaining |
+
+The budgeted replay used the same four-axis request path. The first inbound `state` was 13,968 bytes; the API applied the default generic budget (2048-byte cap, no Doom-specific feature extraction) before native inference.
 
 ## Conclusion
 
-The local adapter accepted and answered the same Jev-shaped four-axis request, but it is not yet viable for this real-time Doom controller. The decisive gap is end-to-end latency on the full structured game state, not schema compatibility: even the batched native session was about 14x slower than the observed first Jev call and arrived too late to prevent death. Keeping the process and model resources warm improved small requests but did not reduce this full-state workload (10.400 s), which shows that native inference over the supplied state dominates rather than process startup.
+The local adapter accepted and answered the same Jev-shaped four-axis request, but it is not yet viable for this real-time Doom controller. Process warmup did not change the 10.4 s full-state result. The generic state budget did: the same encounter produced eight in-time decisions and one kill, with later controller-observed latencies around 1.7 s. That is still several times slower than TypeSafe Jev (first 733 ms, later 236--487 ms, 4 kills and survival). Remaining cost is native inference on the budgeted prompt, including unbudgeted question instructions, not worker startup.
 
 The controller's ordinary 6 s deadline was extended to 15 s only for the batched local observation. The external demo code and its local override were not committed to this repository.
