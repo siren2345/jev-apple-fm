@@ -1,0 +1,57 @@
+[
+  {
+    "id": "refund",
+    "payload": {
+      "model": "jev-latest",
+      "state": "I was charged twice for order A-104. Please refund the duplicate.",
+      "questions": {
+        "route": { "type": "choice", "instructions": "Which team should handle this message?", "criteria": { "billing": "Payments, invoicing, refunds, charges", "technical": "Bugs, errors, crashes, API failures", "sales": "Pricing, plans, seats, purchasing" } }
+      }
+    },
+    "expect": { "route": "billing" }
+  },
+  {
+    "id": "crash",
+    "payload": {
+      "model": "jev-latest",
+      "state": "The export button crashes Safari and I see a 500 from /v1/export.",
+      "questions": {
+        "route": { "type": "choice", "instructions": "Which team should handle this message?", "criteria": { "billing": "Payments, invoicing, refunds, charges", "technical": "Bugs, errors, crashes, API failures", "sales": "Pricing, plans, seats, purchasing" } }
+      }
+    },
+    "expect": { "route": "technical" }
+  },
+  {
+    "id": "pricing",
+    "payload": {
+      "model": "jev-latest",
+      "state": "What does the Team plan cost for 20 seats?",
+      "questions": {
+        "route": { "type": "choice", "instructions": "Which team should handle this message?", "criteria": { "billing": "Payments, invoicing, refunds, charges", "technical": "Bugs, errors, crashes, API failures", "sales": "Pricing, plans, seats, purchasing" } }
+      }
+    },
+    "expect": { "route": "sales" }
+  },
+  {
+    "id": "noul-refund",
+    "payload": {
+      "model": "jev-latest",
+      "state": "I was charged twice for order A-104. Please refund the duplicate.",
+      "questions": {
+        "refund": { "type": "noul", "instructions": "Does the message request a refund?" }
+      }
+    },
+    "expect": { "refund": 1 }
+  },
+  {
+    "id": "noul-no-refund",
+    "payload": {
+      "model": "jev-latest",
+      "state": "What does the Team plan cost for 20 seats?",
+      "questions": {
+        "refund": { "type": "noul", "instructions": "Does the message request a refund?" }
+      }
+    },
+    "expect": { "refund": 0 }
+  }
+]

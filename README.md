@@ -123,9 +123,14 @@ With the server running, replay any Jev-shaped JSON request:
 ```sh
 npm run benchmark -- fixtures/four-axis-choice.json 10
 npm run benchmark -- fixtures/large-nested-state.json 3
+npm run eval -- tickets
+npm run eval -- bbq --limit 10
+npm run eval -- bbq --limit 100 --out results/bbq-100.json
 ```
 
-The script prints p50/p95 end-to-end, worker, and queue latency without saving request content. Set `JEV_LOCAL_URL` to point it at another local endpoint.
+The latency script prints p50/p95 without saving request content. `npm run eval` scores labeled cases over HTTP: `tickets` is five TypeSafe-style routing/noul items, `bbq` is the first 100 Age questions from [simonmesmith/jev-bbq-experiment](https://github.com/simonmesmith/jev-bbq-experiment) (50 ambiguous, 50 disambiguated). Use `--limit` for a faster loop. `--vs https://api.typesafe.ai/v1/systemone` compares against TypeSafe when `JEV_API_KEY` is set. Set `JEV_LOCAL_URL` to point either script at another local endpoint.
+
+The previous BBQ first-100 run scored 0.58 with the classify-only worker (`results/bbq-first-100.json`). Re-run `npm run eval -- bbq --limit 100` after prompt changes.
 
 Current small-fixture baseline (before the compare-then-choose prompt): warm worker inference was approximately 719–752 ms for a 630-byte request with four questions and eight options. A 23,659-byte nested-state fixture dropped from about 5.1 s unbudgeted to 865–877 ms after the generic state budget. The same Doom encounter that previously died before a second 10.4 s decision then completed eight decisions at 1.67–2.29 s and scored one kill; it still died. After the compare-then-choose prompt and a system/user split (`state` in session instructions, questions in the user turn), a seed-1 2048 opening matched TypeSafe Jev's first move (`left` instead of a stuck `up`) at about 3–6 s per move. See [`results/`](results/) for methodology; results depend on request size, macOS version, and hardware.
 

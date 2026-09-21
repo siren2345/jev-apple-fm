@@ -4,3 +4,4 @@ fm_worker
 choice_probe
 .DS_Store
 third_party/
+eval/cache/
