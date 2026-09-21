@@ -1,5 +1,6 @@
 fm_choice
 fm_decide
+fm_worker
 choice_probe
 .DS_Store
 third_party/

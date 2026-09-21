@@ -9,6 +9,7 @@ It implements TypeSafe's public request and answer shapes for `Choice`, `Noul`, 
 ```sh
 swiftc -parse-as-library fm_choice.swift -o fm_choice
 swiftc -parse-as-library fm_decide.swift -o fm_decide
+swiftc -parse-as-library fm_worker.swift -o fm_worker
 npm start
 ```
 
@@ -47,5 +48,6 @@ curl http://127.0.0.1:8787/v1/systemone \
 
 - The adapter uses the native Swift Foundation Models API with dynamic enum constraints and greedy decoding. Choice and Score distributions are point estimates (selected option 1, all others 0); Noul is 0 or 1. They are not calibrated probabilities.
 - Multi-question requests share one constrained Foundation Models session so simultaneous action axes can be decided together. This reduces process overhead, but does not make the on-device model suitable for sub-second control loops.
+- The server keeps one Swift JSONL worker alive. The worker prewarms the on-device model, while each HTTP request gets a fresh `LanguageModelSession` transcript so separate callers' state never leaks into later decisions.
 - The model receives state as data, not instructions, but it remains an LLM. Validate input and keep sensitive side effects outside the model branch.
 - Bind to loopback only. This server has no authentication because it is designed for one local machine owner.

@@ -1,5 +1,6 @@
 import http from "node:http";
 import { spawn } from "node:child_process";
+import readline from "node:readline";
 import { pathToFileURL } from "node:url";
 
 const host = process.env.HOST ?? "127.0.0.1";
@@ -8,6 +9,7 @@ const fmBaseUrl = (process.env.FM_BASE_URL ?? "http://127.0.0.1:1976/v1").replac
 const maxBodyBytes = 1_000_000;
 const nativeChoiceBinary = new URL("./fm_choice", import.meta.url).pathname;
 const nativeDecisionBinary = new URL("./fm_decide", import.meta.url).pathname;
+const nativeWorkerBinary = new URL("./fm_worker", import.meta.url).pathname;
 
 function send(res, status, body) { res.writeHead(status, { "content-type": "application/json; charset=utf-8" }); res.end(JSON.stringify(body)); }
 function apiError(res, status, message, type = "invalid_request_error") { send(res, status, { error: { message, type } }); }
@@ -105,37 +107,41 @@ function nativeChoice(state, instructions, criteria) {
   });
 }
 
-function nativeDecide(payload) {
-  return new Promise((resolve, reject) => {
-    const questions = Object.fromEntries(Object.entries(payload.questions).map(([name, question]) => {
-      const criteria = question.type === "choice"
-        ? question.criteria
-        : question.type === "noul"
-          ? { true: question.criteria?.true ?? "The answer is yes", false: question.criteria?.false ?? "The answer is no" }
-          : Object.fromEntries(question.criteria.map((level, index) => [String(index), level]));
-      return [name, { instructions: question.instructions, criteria }];
-    }));
-    const child = spawn(nativeDecisionBinary, [], { stdio: ["pipe", "pipe", "pipe"] });
-    let stdout = ""; let stderr = "";
-    const timer = setTimeout(() => { child.kill(); reject(new Error("native decision timed out")); }, 30_000);
-    child.stdout.on("data", (chunk) => { stdout += chunk; });
-    child.stderr.on("data", (chunk) => { stderr += chunk; });
-    child.on("error", (error) => { clearTimeout(timer); reject(new Error("native decision unavailable: " + error.message)); });
-    child.on("close", (code) => {
-      clearTimeout(timer);
-      if (code !== 0) return reject(new Error("native decision failed: " + (stderr || stdout)));
-      try {
-        const choices = JSON.parse(stdout).choices;
-        if (!isRecord(choices) || Object.keys(choices).length !== Object.keys(questions).length || !Object.entries(questions).every(([name, question]) => Object.hasOwn(question.criteria, choices[name]))) throw new Error("returned an invalid option");
-        resolve(choices);
-      } catch (error) { reject(new Error("native decision returned invalid JSON: " + (error instanceof Error ? error.message : "unknown error"))); }
+class NativeDecisionWorker {
+  constructor() { this.child = null; this.pending = new Map(); this.nextId = 0; }
+  start() {
+    if (this.child?.exitCode === null) return;
+    this.child = spawn(nativeWorkerBinary, [], { stdio: ["pipe", "pipe", "pipe"] });
+    readline.createInterface({ input: this.child.stdout }).on("line", (line) => {
+      try { const message = JSON.parse(line); const pending = this.pending.get(message.id); if (!pending) return; this.pending.delete(message.id); message.error ? pending.reject(new Error(message.error)) : pending.resolve(message.choices); } catch { /* Ignore malformed worker output. */ }
     });
-    child.stdin.end(JSON.stringify({ state: payload.state, questions }));
-  });
+    this.child.on("exit", () => { for (const { reject, timer } of this.pending.values()) { clearTimeout(timer); reject(new Error("native decision worker exited")); } this.pending.clear(); });
+  }
+  decide(payload) {
+    this.start();
+    return new Promise((resolve, reject) => {
+      const id = String(++this.nextId); const timer = setTimeout(() => { this.pending.delete(id); reject(new Error("native decision timed out")); }, 30_000);
+      this.pending.set(id, { resolve, reject, timer });
+      this.child.stdin.write(JSON.stringify({ id, state: payload.state, questions: decisionQuestions(payload.questions) }) + "\n");
+    });
+  }
 }
+function decisionQuestions(questions) {
+  return Object.fromEntries(Object.entries(questions).map(([name, question]) => {
+    const criteria = question.type === "choice"
+      ? question.criteria
+      : question.type === "noul"
+        ? { true: question.criteria?.true ?? "The answer is yes", false: question.criteria?.false ?? "The answer is no" }
+        : Object.fromEntries(question.criteria.map((level, index) => [String(index), level]));
+    return [name, { instructions: question.instructions, criteria }];
+  }));
+}
+const nativeWorker = new NativeDecisionWorker();
 
 async function decide(payload) {
-  const choices = await nativeDecide(payload);
+  const choices = await nativeWorker.decide(payload);
+  const expected = decisionQuestions(payload.questions);
+  if (!isRecord(choices) || Object.keys(choices).length !== Object.keys(expected).length || !Object.entries(expected).every(([name, question]) => Object.hasOwn(question.criteria, choices[name]))) throw new Error("native decision returned an invalid option");
   const nativeAnswers = Object.fromEntries(Object.entries(payload.questions).map(([name, question]) => {
     const criteria = question.type === "choice"
       ? question.criteria
