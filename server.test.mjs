@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { budgetState, decorateAnswers, responseSchema, validateRequest } from "./server.mjs";
+import { budgetState, decisionQuestions, decorateAnswers, formatInstructions, letterOptions, responseSchema, validateRequest } from "./server.mjs";
 
 const questions = {
   route: { type: "choice", instructions: "Which team owns this?", criteria: { billing: "Payments", support: "Technical issues" } },
@@ -47,4 +47,14 @@ test("tightens array and string caps until the byte budget fits", () => {
   assert.equal(stats.truncated, true);
   assert.ok(stats.budgeted_bytes <= 400, `budgeted ${stats.budgeted_bytes} bytes`);
   assert.ok(stats.limits.max_array_items < 32 || stats.limits.max_string_chars < 80);
+});
+test("maps caller criteria keys to A/B/C internally without changing the HTTP keys", () => {
+  const mapped = letterOptions({ ans0: "The grandfather", ans1: "The grandson", ans2: "Can't be determined" });
+  assert.deepEqual(mapped.map((item) => item.letter), ["A", "B", "C"]);
+  assert.deepEqual(mapped.map((item) => item.key), ["ans0", "ans1", "ans2"]);
+  const worker = decisionQuestions({ who: { type: "choice", instructions: { passage: "Alice went home.", question: "Who went home?" }, criteria: { ans0: "Alice", ans1: "Bob", ans2: "Cannot be determined" } } });
+  assert.equal(worker.who.instructions, "Passage: Alice went home.\n\nQuestion: Who went home?");
+  assert.equal(worker.who.options[2].letter, "C");
+  assert.equal(worker.who.options[2].key, "ans2");
+  assert.match(formatInstructions({ passage: "x", question: "y" }), /^Passage: x\n\nQuestion: y$/);
 });

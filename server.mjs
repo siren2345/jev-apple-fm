@@ -192,14 +192,28 @@ class NativeDecisionWorker {
     });
   }
 }
-function decisionQuestions(questions) {
+const choiceLetters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+function formatOption(value) { return typeof value === "string" ? value : JSON.stringify(value); }
+export function formatInstructions(value) {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return value.map(formatInstructions).join("\n");
+  if (isRecord(value)) {
+    if (typeof (value.passage ?? value.context) === "string" && typeof value.question === "string") return `Passage: ${value.passage ?? value.context}\n\nQuestion: ${value.question}`;
+    return Object.entries(value).map(([key, entry]) => `${key}: ${formatOption(entry)}`).join("\n");
+  }
+  return formatOption(value);
+}
+export function letterOptions(criteria) {
+  return Object.keys(criteria).map((key, index) => ({ letter: index < 26 ? choiceLetters[index] : `Z${index}`, key, text: formatOption(criteria[key]) }));
+}
+export function decisionQuestions(questions) {
   return Object.fromEntries(Object.entries(questions).map(([name, question]) => {
     const criteria = question.type === "choice"
       ? question.criteria
       : question.type === "noul"
         ? { true: question.criteria?.true ?? "The answer is yes", false: question.criteria?.false ?? "The answer is no" }
         : Object.fromEntries(question.criteria.map((level, index) => [String(index), level]));
-    return [name, { instructions: question.instructions, criteria }];
+    return [name, { instructions: formatInstructions(question.instructions), options: letterOptions(criteria) }];
   }));
 }
 const nativeWorker = new NativeDecisionWorker();
@@ -211,14 +225,20 @@ async function decide(payload, bodyBytes) {
   const budget = budgetState(payload.state);
   const { choices, workerMs, roundTripMs } = await nativeWorker.decide({ ...payload, state: budget.state });
   const expected = decisionQuestions(payload.questions);
-  if (!isRecord(choices) || Object.keys(choices).length !== Object.keys(expected).length || !Object.entries(expected).every(([name, question]) => Object.hasOwn(question.criteria, choices[name]))) throw new Error("native decision returned an invalid option");
+  if (!isRecord(choices) || Object.keys(choices).length !== Object.keys(expected).length) throw new Error("native decision returned an invalid option");
+  const decoded = {};
+  for (const [name, question] of Object.entries(expected)) {
+    const option = question.options.find((entry) => entry.letter === choices[name]);
+    if (!option) throw new Error("native decision returned an invalid option");
+    decoded[name] = option.key;
+  }
   const nativeAnswers = Object.fromEntries(Object.entries(payload.questions).map(([name, question]) => {
     const criteria = question.type === "choice"
       ? question.criteria
       : question.type === "noul"
         ? { true: question.criteria?.true ?? "The answer is yes", false: question.criteria?.false ?? "The answer is no" }
         : Object.fromEntries(question.criteria.map((level, index) => [String(index), level]));
-    const choice = choices[name];
+    const choice = decoded[name];
     if (question.type === "noul") return [name, { type: "noul", noul: choice === "true" ? 1 : 0 }];
     const probabilities = Object.fromEntries(Object.keys(criteria).map((option) => [option, option === choice ? 1 : 0]));
     if (question.type === "choice") return [name, { type: "choice", choice, probabilities, confidence: 1 }];
@@ -226,7 +246,7 @@ async function decide(payload, bodyBytes) {
     return [name, { type: "score", score: Number(choice), legend, probabilities, confidence: 1 }];
   }));
   const performanceMetrics = { request_bytes: bodyBytes, state_bytes: budget.stats.original_bytes, budgeted_state_bytes: budget.stats.budgeted_bytes, state_truncated: budget.stats.truncated, omitted_array_items: budget.stats.omitted_array_items, worker_ms: workerMs, worker_round_trip_ms: roundTripMs, worker_queue_ms: Number(Math.max(0, roundTripMs - workerMs).toFixed(3)), ...questionMetrics(payload.questions) };
-  return { model: "jev-local-fm-0.6", answers: nativeAnswers, usage: { input_tokens: 0, output_tokens: 0 }, metadata: { provider: "Apple Foundation Models native greedy decisions", confidence: "All probabilities are greedy point estimates, not Jev-calibrated", performance: performanceMetrics } };
+  return { model: "jev-local-fm-0.7", answers: nativeAnswers, usage: { input_tokens: 0, output_tokens: 0 }, metadata: { provider: "Apple Foundation Models native greedy decisions", confidence: "All probabilities are greedy point estimates, not Jev-calibrated", performance: performanceMetrics } };
 }
 
 export const server = http.createServer(async (request, response) => {

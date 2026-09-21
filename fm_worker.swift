@@ -6,33 +6,38 @@ func jsonString(_ value: Any) throws -> String {
     return String(decoding: try JSONSerialization.data(withJSONObject: value, options: [.sortedKeys]), as: UTF8.self)
 }
 
-func display(_ value: Any?) -> String {
-    guard let value else { return "" }
-    if let string = value as? String { return string }
-    return (try? jsonString(value)) ?? ""
-}
-
 func emit(_ value: Any) {
     let data = try! JSONSerialization.data(withJSONObject: value, options: [.sortedKeys])
     FileHandle.standardOutput.write(data)
     FileHandle.standardOutput.write(Data("\n".utf8))
 }
 
-func optionKeys(_ criteria: [String: Any]) -> [String] {
-    criteria.keys.sorted()
+func options(from question: [String: Any]) throws -> [(letter: String, text: String)] {
+    guard let items = question["options"] as? [[String: Any]], !items.isEmpty else {
+        throw NSError(domain: "fm-worker", code: 1, userInfo: [NSLocalizedDescriptionKey: "Each question needs non-empty A-Z options"])
+    }
+    return try items.map { item in
+        guard let letter = item["letter"] as? String, let text = item["text"] as? String, !letter.isEmpty else {
+            throw NSError(domain: "fm-worker", code: 1, userInfo: [NSLocalizedDescriptionKey: "Each option needs letter and text"])
+        }
+        return (letter, text)
+    }
 }
 
-func userPrompt(questions: [String: [String: Any]], names: [String]) -> String {
-    var lines: [String] = ["QUESTIONS:"]
+func userPrompt(questions: [String: [String: Any]], names: [String]) throws -> String {
+    var lines: [String] = []
     for name in names {
-        guard let question = questions[name], let criteria = question["criteria"] as? [String: Any] else { continue }
-        lines.append("- \(name): \(display(question["instructions"]))")
-        lines.append("  Allowed identifiers:")
-        for key in optionKeys(criteria) { lines.append("  - \(key): \(display(criteria[key]))") }
+        guard let question = questions[name] else { continue }
+        let instructions = question["instructions"] as? String ?? ""
+        if names.count > 1 { lines.append("Question \(name):") }
+        if !instructions.isEmpty { lines.append(instructions); lines.append("") }
+        lines.append("Options:")
+        for option in try options(from: question) { lines.append("\(option.letter). \(option.text)") }
+        lines.append("")
+        lines.append("Answer:")
+        lines.append("")
     }
-    lines.append("")
-    lines.append("Compare the options against the state in the system message. Then pick exactly one allowed identifier per question. Option order is not a ranking. Axes are independent unless a question says otherwise.")
-    return lines.joined(separator: "\n")
+    return lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
 }
 
 func decide(_ request: [String: Any], model: SystemLanguageModel) async throws -> [String: String] {
@@ -40,22 +45,16 @@ func decide(_ request: [String: Any], model: SystemLanguageModel) async throws -
         throw NSError(domain: "fm-worker", code: 1, userInfo: [NSLocalizedDescriptionKey: "Expected non-empty questions"])
     }
     let names = questionData.keys.sorted()
-    var properties: [DynamicGenerationSchema.Property] = [
-        .init(name: "rationale", description: "Short comparison of the options against the state, then the intended picks.", schema: DynamicGenerationSchema(type: String.self))
-    ]
+    var properties: [DynamicGenerationSchema.Property] = []
     for name in names {
-        guard let question = questionData[name], let criteria = question["criteria"] as? [String: Any], !criteria.isEmpty else {
-            throw NSError(domain: "fm-worker", code: 1, userInfo: [NSLocalizedDescriptionKey: "Each question needs non-empty Choice criteria"])
-        }
-        let keys = optionKeys(criteria)
-        let optionText = keys.map { key in "\(key) = \(display(criteria[key]))" }.joined(separator: "; ")
-        properties.append(.init(name: name, description: "\(display(question["instructions"])) Pick one identifier. Options: \(optionText)", schema: DynamicGenerationSchema(type: String.self, guides: [.anyOf(keys)])))
+        let letters = try options(from: questionData[name] ?? [:]).map(\.letter)
+        properties.append(.init(name: name, description: "The letter of the chosen option.", schema: DynamicGenerationSchema(type: String.self, guides: [.anyOf(letters)])))
     }
-    let schema = try GenerationSchema(root: DynamicGenerationSchema(name: "DecisionFrame", description: "Compare options, then choose one allowed identifier per question.", properties: properties), dependencies: [])
+    let schema = try GenerationSchema(root: DynamicGenerationSchema(name: "DecisionFrame", description: "One option letter per question.", properties: properties), dependencies: [])
     // Fresh transcript per request preserves the HTTP API's stateless semantics.
-    // Match jev-single-decode's chat split: system holds state, user holds the questions.
+    // Internal A/B/C prompt; HTTP criteria keys are mapped back by the Node layer.
     let session = LanguageModelSession(model: model, instructions: try jsonString(request["state"] ?? ""))
-    let response = try await session.respond(to: userPrompt(questions: questionData, names: names), schema: schema, options: GenerationOptions(sampling: .greedy))
+    let response = try await session.respond(to: try userPrompt(questions: questionData, names: names), schema: schema, options: GenerationOptions(sampling: .greedy))
     return try Dictionary(uniqueKeysWithValues: names.map { name in (name, try response.content.value(forProperty: name) as String) })
 }
 
@@ -64,7 +63,6 @@ struct FMWorker {
     static func main() async {
         let model = SystemLanguageModel()
         guard model.isAvailable else { emit(["id": "startup", "error": "Foundation Models unavailable"]); return }
-        // Prewarm model resources once; individual sessions remain fresh to avoid transcript leakage.
         LanguageModelSession(model: model, instructions: "{}").prewarm()
         while let line = readLine() {
             guard let data = line.data(using: .utf8), let request = try? JSONSerialization.jsonObject(with: data) as? [String: Any], let id = request["id"] as? String else {
