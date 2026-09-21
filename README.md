@@ -94,15 +94,18 @@ The response preserves question names and Choice criteria keys:
 | `score` (2–10 ordered levels) | Supported as a greedy one-hot score |
 | Calibrated probabilities | Not supported |
 | Cloud API key | Not used |
+| Generic `state` input budget | Supported; questions and Choice keys are never truncated |
 
 This server is shape-compatible, not behavior-identical to Jev. Each probability distribution is a greedy point estimate: the selected answer is `1`, all alternatives are `0`, and `confidence` is therefore `1`. Do not treat these values as calibrated probabilities.
+
+Before the Swift worker sees `state`, the API applies a generic budget: long strings are sliced, long arrays keep a prefix plus an `_omitted` count, objects deeper than the depth cap are replaced, and limits tighten until the serialized state fits `JEV_STATE_MAX_BYTES` (default 2048). This is not a domain-specific compressor. Disable it with `JEV_STATE_BUDGET=off`. Successful responses report `state_bytes`, `budgeted_state_bytes`, and `state_truncated` in `metadata.performance`.
 
 ## Architecture
 
 ```text
 client
   -> POST /v1/systemone on 127.0.0.1:8787
-  -> Node compatibility and validation layer
+  -> Node compatibility, validation, and generic state budget
   -> persistent Swift JSONL worker
   -> Apple Foundation Models on-device runtime
 ```
@@ -117,11 +120,12 @@ With the server running, replay any Jev-shaped JSON request:
 
 ```sh
 npm run benchmark -- fixtures/four-axis-choice.json 10
+npm run benchmark -- fixtures/large-nested-state.json 3
 ```
 
 The script prints p50/p95 end-to-end, worker, and queue latency without saving request content. Set `JEV_LOCAL_URL` to point it at another local endpoint.
 
-Current small-fixture baseline: warm worker inference was approximately 734–754 ms for a 630-byte request with four questions and eight options. See [`results/`](results/) for methodology and the Doom comparison; results depend on request size, macOS version, and hardware.
+Current small-fixture baseline: warm worker inference was approximately 719–752 ms for a 630-byte request with four questions and eight options. A 23,659-byte nested-state fixture dropped from about 5.1 s unbudgeted to 865–877 ms after the generic state budget (23,167 → 1,382 state bytes). See [`results/`](results/) for methodology; results depend on request size, macOS version, and hardware.
 
 ## Development
 

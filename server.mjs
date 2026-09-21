@@ -10,6 +10,15 @@ const maxBodyBytes = 1_000_000;
 const nativeChoiceBinary = new URL("./fm_choice", import.meta.url).pathname;
 const nativeDecisionBinary = new URL("./fm_decide", import.meta.url).pathname;
 const nativeWorkerBinary = new URL("./fm_worker", import.meta.url).pathname;
+const envInt = (name, fallback) => { const value = Number(process.env[name]); return Number.isInteger(value) ? value : fallback; };
+export const defaultStateBudget = {
+  max_array_items: envInt("JEV_STATE_MAX_ARRAY", 16),
+  max_string_chars: envInt("JEV_STATE_MAX_STRING", 160),
+  max_object_keys: envInt("JEV_STATE_MAX_KEYS", 32),
+  max_depth: envInt("JEV_STATE_MAX_DEPTH", 6),
+  max_bytes: envInt("JEV_STATE_MAX_BYTES", 2048),
+};
+const stateBudgetEnabled = process.env.JEV_STATE_BUDGET !== "off" && defaultStateBudget.max_bytes > 0;
 
 function send(res, status, body) { res.writeHead(status, { "content-type": "application/json; charset=utf-8" }); res.end(JSON.stringify(body)); }
 function apiError(res, status, message, type = "invalid_request_error") { send(res, status, { error: { message, type } }); }
@@ -39,6 +48,63 @@ export function validateRequest(payload) {
   if (!isStructured(payload.state)) throw new Error("state is required and must be a string, object, or array");
   if (!isRecord(payload.questions) || Object.keys(payload.questions).length === 0) throw new Error("questions must be a non-empty object");
   for (const [name, question] of Object.entries(payload.questions)) validateQuestion(name, question);
+}
+
+function utf8Bytes(value) { return Buffer.byteLength(JSON.stringify(value), "utf8"); }
+function compactState(value, depth, limits, stats) {
+  if (value === null || typeof value === "number" || typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    if (value.length <= limits.max_string_chars) return value;
+    stats.truncated = true;
+    stats.omitted_string_chars += value.length - limits.max_string_chars;
+    return value.slice(0, limits.max_string_chars);
+  }
+  if (depth >= limits.max_depth) {
+    stats.truncated = true;
+    return { _omitted: "max_depth" };
+  }
+  if (Array.isArray(value)) {
+    const kept = value.slice(0, limits.max_array_items).map((item) => compactState(item, depth + 1, limits, stats));
+    if (value.length > limits.max_array_items) {
+      stats.truncated = true;
+      stats.omitted_array_items += value.length - limits.max_array_items;
+      kept.push({ _omitted: value.length - limits.max_array_items });
+    }
+    return kept;
+  }
+  if (isRecord(value)) {
+    const keys = Object.keys(value);
+    const out = {};
+    for (const key of keys.slice(0, limits.max_object_keys)) out[key] = compactState(value[key], depth + 1, limits, stats);
+    if (keys.length > limits.max_object_keys) {
+      stats.truncated = true;
+      stats.omitted_keys += keys.length - limits.max_object_keys;
+      out._omitted_keys = keys.length - limits.max_object_keys;
+    }
+    return out;
+  }
+  return value;
+}
+export function budgetState(state, limits = defaultStateBudget) {
+  const originalBytes = utf8Bytes(state);
+  if (!stateBudgetEnabled && limits === defaultStateBudget) return { state, stats: { truncated: false, original_bytes: originalBytes, budgeted_bytes: originalBytes, omitted_array_items: 0, omitted_keys: 0, omitted_string_chars: 0, limits } };
+  let applied = { ...limits };
+  const run = () => {
+    const stats = { truncated: false, omitted_array_items: 0, omitted_keys: 0, omitted_string_chars: 0 };
+    const budgeted = compactState(state, 0, applied, stats);
+    return { state: budgeted, stats, bytes: utf8Bytes(budgeted) };
+  };
+  let result = run();
+  while (result.bytes > applied.max_bytes && (applied.max_array_items > 1 || applied.max_string_chars > 32 || applied.max_object_keys > 8)) {
+    applied = {
+      ...applied,
+      max_array_items: Math.max(1, Math.floor(applied.max_array_items / 2)),
+      max_string_chars: Math.max(32, Math.floor(applied.max_string_chars / 2)),
+      max_object_keys: Math.max(8, Math.floor(applied.max_object_keys / 2)),
+    };
+    result = run();
+  }
+  return { state: result.state, stats: { truncated: result.stats.truncated || result.bytes !== originalBytes, original_bytes: originalBytes, budgeted_bytes: result.bytes, omitted_array_items: result.stats.omitted_array_items, omitted_keys: result.stats.omitted_keys, omitted_string_chars: result.stats.omitted_string_chars, limits: applied } };
 }
 
 function probabilityObjectSchema(keys) { return { type: "object", additionalProperties: false, properties: Object.fromEntries(keys.map((key) => [key, { type: "number", minimum: 0, maximum: 1 }])), required: keys }; }
@@ -142,7 +208,8 @@ function questionMetrics(questions) {
   return { question_count: Object.keys(questions).length, option_count: Object.values(questions).reduce((total, question) => total + (question.type === "choice" ? Object.keys(question.criteria).length : question.type === "score" ? question.criteria.length : 2), 0) };
 }
 async function decide(payload, bodyBytes) {
-  const { choices, workerMs, roundTripMs } = await nativeWorker.decide(payload);
+  const budget = budgetState(payload.state);
+  const { choices, workerMs, roundTripMs } = await nativeWorker.decide({ ...payload, state: budget.state });
   const expected = decisionQuestions(payload.questions);
   if (!isRecord(choices) || Object.keys(choices).length !== Object.keys(expected).length || !Object.entries(expected).every(([name, question]) => Object.hasOwn(question.criteria, choices[name]))) throw new Error("native decision returned an invalid option");
   const nativeAnswers = Object.fromEntries(Object.entries(payload.questions).map(([name, question]) => {
@@ -158,7 +225,7 @@ async function decide(payload, bodyBytes) {
     const legend = Object.fromEntries(question.criteria.map((level, index) => [String(index), typeof level === "string" ? level : JSON.stringify(level)]));
     return [name, { type: "score", score: Number(choice), legend, probabilities, confidence: 1 }];
   }));
-  const performanceMetrics = { request_bytes: bodyBytes, worker_ms: workerMs, worker_round_trip_ms: roundTripMs, worker_queue_ms: Number(Math.max(0, roundTripMs - workerMs).toFixed(3)), ...questionMetrics(payload.questions) };
+  const performanceMetrics = { request_bytes: bodyBytes, state_bytes: budget.stats.original_bytes, budgeted_state_bytes: budget.stats.budgeted_bytes, state_truncated: budget.stats.truncated, omitted_array_items: budget.stats.omitted_array_items, worker_ms: workerMs, worker_round_trip_ms: roundTripMs, worker_queue_ms: Number(Math.max(0, roundTripMs - workerMs).toFixed(3)), ...questionMetrics(payload.questions) };
   return { model: "jev-local-fm-0.4", answers: nativeAnswers, usage: { input_tokens: 0, output_tokens: 0 }, metadata: { provider: "Apple Foundation Models native greedy decisions", confidence: "All probabilities are greedy point estimates, not Jev-calibrated", performance: performanceMetrics } };
 }
 
