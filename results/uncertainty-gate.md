@@ -14,3 +14,5 @@ BBQ Age first 100, failures counted as wrong:
 | A/B/C + uncertainty veto | **82 / 100** | **45 / 50** | 37 / 50 | 407 ms |
 
 The veto trades some evidence-backed answers for fewer stereotype guesses. Tickets without an uncertainty option still take one worker call.
+
+This gate was reverted. It over-corrected: ambiguous accuracy rose, but evidence-backed answers fell, and a prior “is this determined?” pass collapsed to always-unknown. Current `main` is the internal A/B/C prompt without a second pass.

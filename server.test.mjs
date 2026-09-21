@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { budgetState, decisionQuestions, decorateAnswers, formatInstructions, letterOptions, responseSchema, uncertaintyKey, validateRequest } from "./server.mjs";
+import { budgetState, decisionQuestions, decorateAnswers, formatInstructions, letterOptions, responseSchema, validateRequest } from "./server.mjs";
 
 const questions = {
   route: { type: "choice", instructions: "Which team owns this?", criteria: { billing: "Payments", support: "Technical issues" } },
@@ -57,9 +57,4 @@ test("maps caller criteria keys to A/B/C internally without changing the HTTP ke
   assert.equal(worker.who.options[2].letter, "C");
   assert.equal(worker.who.options[2].key, "ans2");
   assert.match(formatInstructions({ passage: "x", question: "y" }), /^Passage: x\n\nQuestion: y$/);
-});
-test("detects uncertainty options without treating ordinary labels as unknown", () => {
-  assert.equal(uncertaintyKey({ ans0: "The grandfather", ans1: "The grandson", ans2: "Can't be determined" }), "ans2");
-  assert.equal(uncertaintyKey({ ans0: "Unknown", ans1: "The grandmother", ans2: "The grandson" }), "ans0");
-  assert.equal(uncertaintyKey({ billing: "Payments", technical: "Bugs", sales: "Pricing" }), null);
 });
