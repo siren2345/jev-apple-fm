@@ -45,7 +45,13 @@ struct FMWorker {
             guard let data = line.data(using: .utf8), let request = try? JSONSerialization.jsonObject(with: data) as? [String: Any], let id = request["id"] as? String else {
                 emit(["id": "unknown", "error": "Invalid JSONL request"]); continue
             }
-            do { emit(["id": id, "choices": try await decide(request, model: model)]) }
+            let started = ContinuousClock.now
+            do {
+                let choices = try await decide(request, model: model)
+                let duration = started.duration(to: .now).components
+                let elapsed = Double(duration.seconds) * 1_000 + Double(duration.attoseconds) / 1e15
+                emit(["id": id, "choices": choices, "worker_ms": elapsed])
+            }
             catch { emit(["id": id, "error": error.localizedDescription]) }
         }
     }

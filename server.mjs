@@ -19,7 +19,7 @@ function isStructured(value) { return typeof value === "string" || isRecord(valu
 async function readJson(request) {
   let size = 0; const chunks = [];
   for await (const chunk of request) { size += chunk.length; if (size > maxBodyBytes) throw new Error("Request body exceeds 1 MB"); chunks.push(chunk); }
-  try { return JSON.parse(Buffer.concat(chunks).toString("utf8")); } catch { throw new Error("Request body must be valid JSON"); }
+  try { return { payload: JSON.parse(Buffer.concat(chunks).toString("utf8")), bodyBytes: size }; } catch { throw new Error("Request body must be valid JSON"); }
 }
 
 function optionKeys(question) { return question.type === "choice" ? Object.keys(question.criteria) : []; }
@@ -113,7 +113,7 @@ class NativeDecisionWorker {
     if (this.child?.exitCode === null) return;
     this.child = spawn(nativeWorkerBinary, [], { stdio: ["pipe", "pipe", "pipe"] });
     readline.createInterface({ input: this.child.stdout }).on("line", (line) => {
-      try { const message = JSON.parse(line); const pending = this.pending.get(message.id); if (!pending) return; this.pending.delete(message.id); message.error ? pending.reject(new Error(message.error)) : pending.resolve(message.choices); } catch { /* Ignore malformed worker output. */ }
+      try { const message = JSON.parse(line); const pending = this.pending.get(message.id); if (!pending) return; this.pending.delete(message.id); clearTimeout(pending.timer); message.error ? pending.reject(new Error(message.error)) : pending.resolve({ choices: message.choices, workerMs: Number(message.worker_ms), roundTripMs: Number((performance.now() - pending.started).toFixed(3)) }); } catch { /* Ignore malformed worker output. */ }
     });
     this.child.on("exit", () => { for (const { reject, timer } of this.pending.values()) { clearTimeout(timer); reject(new Error("native decision worker exited")); } this.pending.clear(); });
   }
@@ -121,7 +121,7 @@ class NativeDecisionWorker {
     this.start();
     return new Promise((resolve, reject) => {
       const id = String(++this.nextId); const timer = setTimeout(() => { this.pending.delete(id); reject(new Error("native decision timed out")); }, 30_000);
-      this.pending.set(id, { resolve, reject, timer });
+      this.pending.set(id, { resolve, reject, timer, started: performance.now() });
       this.child.stdin.write(JSON.stringify({ id, state: payload.state, questions: decisionQuestions(payload.questions) }) + "\n");
     });
   }
@@ -138,8 +138,11 @@ function decisionQuestions(questions) {
 }
 const nativeWorker = new NativeDecisionWorker();
 
-async function decide(payload) {
-  const choices = await nativeWorker.decide(payload);
+function questionMetrics(questions) {
+  return { question_count: Object.keys(questions).length, option_count: Object.values(questions).reduce((total, question) => total + (question.type === "choice" ? Object.keys(question.criteria).length : question.type === "score" ? question.criteria.length : 2), 0) };
+}
+async function decide(payload, bodyBytes) {
+  const { choices, workerMs, roundTripMs } = await nativeWorker.decide(payload);
   const expected = decisionQuestions(payload.questions);
   if (!isRecord(choices) || Object.keys(choices).length !== Object.keys(expected).length || !Object.entries(expected).every(([name, question]) => Object.hasOwn(question.criteria, choices[name]))) throw new Error("native decision returned an invalid option");
   const nativeAnswers = Object.fromEntries(Object.entries(payload.questions).map(([name, question]) => {
@@ -155,13 +158,14 @@ async function decide(payload) {
     const legend = Object.fromEntries(question.criteria.map((level, index) => [String(index), typeof level === "string" ? level : JSON.stringify(level)]));
     return [name, { type: "score", score: Number(choice), legend, probabilities, confidence: 1 }];
   }));
-  return { model: "jev-local-fm-0.4", answers: nativeAnswers, usage: { input_tokens: 0, output_tokens: 0 }, metadata: { provider: "Apple Foundation Models native greedy decisions", confidence: "All probabilities are greedy point estimates, not Jev-calibrated" } };
+  const performanceMetrics = { request_bytes: bodyBytes, worker_ms: workerMs, worker_round_trip_ms: roundTripMs, worker_queue_ms: Number(Math.max(0, roundTripMs - workerMs).toFixed(3)), ...questionMetrics(payload.questions) };
+  return { model: "jev-local-fm-0.4", answers: nativeAnswers, usage: { input_tokens: 0, output_tokens: 0 }, metadata: { provider: "Apple Foundation Models native greedy decisions", confidence: "All probabilities are greedy point estimates, not Jev-calibrated", performance: performanceMetrics } };
 }
 
 export const server = http.createServer(async (request, response) => {
   if (request.method === "GET" && request.url === "/health") return send(response, 200, { status: "ok", fm_base_url: fmBaseUrl });
   if (request.method === "POST" && ["/v1/systemone", "/v1/decide"].includes(request.url)) {
-    try { const payload = await readJson(request); validateRequest(payload); return send(response, 200, await decide(payload)); }
+    try { const { payload, bodyBytes } = await readJson(request); validateRequest(payload); const result = await decide(payload, bodyBytes); const p = result.metadata.performance; response.setHeader("server-timing", `fm-worker;dur=${p.worker_ms}, fm-queue;dur=${p.worker_queue_ms}`); return send(response, 200, result); }
     catch (error) { const message = error instanceof Error ? error.message : "Unknown error"; return apiError(response, message.startsWith("fm serve") || message.includes("structured output") || message.includes("adapter validation") ? 502 : 422, message); }
   }
   return apiError(response, 404, "Not found", "not_found_error");

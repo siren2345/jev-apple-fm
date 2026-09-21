@@ -1,0 +1,10 @@
+{
+  "model": "jev-latest",
+  "state": {"player": {"health": 100}, "combat": {"visible_enemy_count": 3}},
+  "questions": {
+    "movement": {"type": "choice", "instructions": "Choose movement.", "criteria": {"HOLD_POSITION": "hold", "RETREAT_FROM_ENEMY": "retreat"}},
+    "view": {"type": "choice", "instructions": "Choose view.", "criteria": {"SCAN": "scan", "FACE_ENEMY": "face"}},
+    "trigger": {"type": "choice", "instructions": "Choose trigger.", "criteria": {"HOLD_FIRE": "hold", "FIRE": "fire"}},
+    "interaction": {"type": "choice", "instructions": "Choose interaction.", "criteria": {"NO_USE": "no", "USE": "use"}}
+  }
+}

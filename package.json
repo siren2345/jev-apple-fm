@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "node server.mjs",
-    "test": "node --test server.test.mjs"
+    "test": "node --test server.test.mjs",
+    "benchmark": "node benchmark_request.mjs"
   }
 }

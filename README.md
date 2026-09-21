@@ -15,6 +15,18 @@ npm start
 
 The adapter binds only to `127.0.0.1:8787` by default. Set `PORT` or `HOST` only when intentionally changing that local topology.
 
+## Profile and replay
+
+Every successful response includes `metadata.performance` with request bytes, question/option counts, Swift inference time, worker queue time, and worker round-trip time. The same timings are also exposed in the HTTP `Server-Timing` header.
+
+Replay any Jev-shaped JSON request against a running local server:
+
+```sh
+npm run benchmark -- fixtures/four-axis-choice.json 10
+```
+
+The script reports p50/p95 end-to-end, worker, and queue latency without saving request content. Set `JEV_LOCAL_URL` to use a non-default local endpoint.
+
 ## Request
 
 ```sh
