@@ -7,6 +7,7 @@ const port = Number(process.env.PORT ?? 8787);
 const fmBaseUrl = (process.env.FM_BASE_URL ?? "http://127.0.0.1:1976/v1").replace(/\/$/, "");
 const maxBodyBytes = 1_000_000;
 const nativeChoiceBinary = new URL("./fm_choice", import.meta.url).pathname;
+const nativeDecisionBinary = new URL("./fm_decide", import.meta.url).pathname;
 
 function send(res, status, body) { res.writeHead(status, { "content-type": "application/json; charset=utf-8" }); res.end(JSON.stringify(body)); }
 function apiError(res, status, message, type = "invalid_request_error") { send(res, status, { error: { message, type } }); }
@@ -104,20 +105,50 @@ function nativeChoice(state, instructions, criteria) {
   });
 }
 
+function nativeDecide(payload) {
+  return new Promise((resolve, reject) => {
+    const questions = Object.fromEntries(Object.entries(payload.questions).map(([name, question]) => {
+      const criteria = question.type === "choice"
+        ? question.criteria
+        : question.type === "noul"
+          ? { true: question.criteria?.true ?? "The answer is yes", false: question.criteria?.false ?? "The answer is no" }
+          : Object.fromEntries(question.criteria.map((level, index) => [String(index), level]));
+      return [name, { instructions: question.instructions, criteria }];
+    }));
+    const child = spawn(nativeDecisionBinary, [], { stdio: ["pipe", "pipe", "pipe"] });
+    let stdout = ""; let stderr = "";
+    const timer = setTimeout(() => { child.kill(); reject(new Error("native decision timed out")); }, 30_000);
+    child.stdout.on("data", (chunk) => { stdout += chunk; });
+    child.stderr.on("data", (chunk) => { stderr += chunk; });
+    child.on("error", (error) => { clearTimeout(timer); reject(new Error("native decision unavailable: " + error.message)); });
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      if (code !== 0) return reject(new Error("native decision failed: " + (stderr || stdout)));
+      try {
+        const choices = JSON.parse(stdout).choices;
+        if (!isRecord(choices) || Object.keys(choices).length !== Object.keys(questions).length || !Object.entries(questions).every(([name, question]) => Object.hasOwn(question.criteria, choices[name]))) throw new Error("returned an invalid option");
+        resolve(choices);
+      } catch (error) { reject(new Error("native decision returned invalid JSON: " + (error instanceof Error ? error.message : "unknown error"))); }
+    });
+    child.stdin.end(JSON.stringify({ state: payload.state, questions }));
+  });
+}
+
 async function decide(payload) {
-  const nativeAnswers = Object.fromEntries(await Promise.all(Object.entries(payload.questions).map(async ([name, question]) => {
+  const choices = await nativeDecide(payload);
+  const nativeAnswers = Object.fromEntries(Object.entries(payload.questions).map(([name, question]) => {
     const criteria = question.type === "choice"
       ? question.criteria
       : question.type === "noul"
         ? { true: question.criteria?.true ?? "The answer is yes", false: question.criteria?.false ?? "The answer is no" }
         : Object.fromEntries(question.criteria.map((level, index) => [String(index), level]));
-    const choice = await nativeChoice(payload.state, question.instructions, criteria);
+    const choice = choices[name];
     if (question.type === "noul") return [name, { type: "noul", noul: choice === "true" ? 1 : 0 }];
     const probabilities = Object.fromEntries(Object.keys(criteria).map((option) => [option, option === choice ? 1 : 0]));
     if (question.type === "choice") return [name, { type: "choice", choice, probabilities, confidence: 1 }];
     const legend = Object.fromEntries(question.criteria.map((level, index) => [String(index), typeof level === "string" ? level : JSON.stringify(level)]));
     return [name, { type: "score", score: Number(choice), legend, probabilities, confidence: 1 }];
-  })));
+  }));
   return { model: "jev-local-fm-0.4", answers: nativeAnswers, usage: { input_tokens: 0, output_tokens: 0 }, metadata: { provider: "Apple Foundation Models native greedy decisions", confidence: "All probabilities are greedy point estimates, not Jev-calibrated" } };
 }
 
