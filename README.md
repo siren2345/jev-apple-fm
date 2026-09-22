@@ -127,6 +127,7 @@ With the server running, replay any Jev-shaped JSON request:
 npm run benchmark -- fixtures/four-axis-choice.json 10
 npm run benchmark -- fixtures/large-nested-state.json 3
 npm run benchmark -- fixtures/2048-choice.json 20
+npm run benchmark:2048 -- --seeds 1,7,42 --max-moves 100
 npm run eval -- tickets
 npm run eval:tickets
 npm run eval -- bbq --limit 10

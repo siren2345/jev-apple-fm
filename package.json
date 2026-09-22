@@ -9,6 +9,7 @@
     "start": "node server.mjs",
     "test": "node --test server.test.mjs test/*.test.mjs",
     "benchmark": "node benchmark_request.mjs",
+    "benchmark:2048": "node benchmark_2048.mjs",
     "eval": "node eval.mjs",
     "eval:tickets": "node eval.mjs tickets --expect-min-accuracy 1 --expect-max-errors 0"
   }

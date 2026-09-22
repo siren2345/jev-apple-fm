@@ -29,3 +29,25 @@ Run the representative API request with:
 ```sh
 npm run benchmark -- fixtures/2048-choice.json 20
 ```
+
+For fixed-seed game-quality regression, use the repository harness:
+
+```sh
+npm run benchmark:2048 -- --seeds 1,7,42 --max-moves 100
+```
+
+It contains the game mechanics solely to make the API benchmark reproducible;
+the API itself receives only an ordinary `choice` request and has no 2048
+branch.
+
+## Current fixed-seed baseline
+
+The first harness run used the minimal profile above. Seed 7 ended after 40
+moves at tile 16; seed 1 ended after 80 moves at tile 64; seed 42 reached tile
+64 after 80 moves and was still active. Warm request p50 was 318–323 ms.
+
+This establishes that turn latency is practical but Apple FM greedy choice is
+not yet a practical standalone 2048 policy. Do not present the fixture as a
+2048 solver. A future quality change must improve this fixed-seed suite without
+weakening the generic API contract; a deterministic game policy, if desired,
+belongs in a client rather than in this API server.
