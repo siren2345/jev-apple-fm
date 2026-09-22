@@ -199,7 +199,6 @@ class NativeDecisionWorker {
     });
   }
 }
-const choiceLetters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 function formatOption(value) { return typeof value === "string" ? value : JSON.stringify(value); }
 export function formatInstructions(value) {
   if (typeof value === "string") return value;
@@ -210,8 +209,8 @@ export function formatInstructions(value) {
   }
   return formatOption(value);
 }
-export function letterOptions(criteria) {
-  return Object.keys(criteria).map((key, index) => ({ letter: choiceLetters[index], key, text: formatOption(criteria[key]) }));
+export function choiceOptions(criteria) {
+  return Object.keys(criteria).map((key) => ({ key, text: formatOption(criteria[key]) }));
 }
 export function decisionQuestions(questions) {
   return Object.fromEntries(Object.entries(questions).map(([name, question]) => {
@@ -220,7 +219,7 @@ export function decisionQuestions(questions) {
       : question.type === "noul"
         ? { true: question.criteria?.true ?? "The answer is yes", false: question.criteria?.false ?? "The answer is no" }
         : Object.fromEntries(question.criteria.map((level, index) => [String(index), level]));
-    return [name, { instructions: formatInstructions(question.instructions), options: letterOptions(criteria) }];
+    return [name, { instructions: formatInstructions(question.instructions), options: choiceOptions(criteria) }];
   }));
 }
 const nativeWorker = new NativeDecisionWorker();
@@ -228,12 +227,12 @@ const nativeWorker = new NativeDecisionWorker();
 function questionMetrics(questions) {
   return { question_count: Object.keys(questions).length, option_count: Object.values(questions).reduce((total, question) => total + (question.type === "choice" ? Object.keys(question.criteria).length : question.type === "score" ? question.criteria.length : 2), 0) };
 }
-function decodeLetters(choices, questions) {
+function decodeChoices(choices, questions) {
   const expected = decisionQuestions(questions);
   if (!isRecord(choices) || Object.keys(choices).length !== Object.keys(expected).length) throw new Error("native decision returned an invalid option");
   const decoded = {};
   for (const [name, question] of Object.entries(expected)) {
-    const option = question.options.find((entry) => entry.letter === choices[name]);
+    const option = question.options.find((entry) => entry.key === choices[name]);
     if (!option) throw new Error("native decision returned an invalid option");
     decoded[name] = option.key;
   }
@@ -241,7 +240,7 @@ function decodeLetters(choices, questions) {
 }
 async function chooseKeys(state, questions) {
   const { choices, workerMs, roundTripMs } = await nativeWorker.decide({ state, questions });
-  return { keys: decodeLetters(choices, questions), workerMs, roundTripMs };
+  return { keys: decodeChoices(choices, questions), workerMs, roundTripMs };
 }
 async function decide(payload, bodyBytes) {
   const budget = budgetState(payload.state);

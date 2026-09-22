@@ -51,3 +51,15 @@ not yet a practical standalone 2048 policy. Do not present the fixture as a
 2048 solver. A future quality change must improve this fixed-seed suite without
 weakening the generic API contract; a deterministic game policy, if desired,
 belongs in a client rather than in this API server.
+
+## Prompt experiments
+
+Directly constraining native output to the caller's option key (rather than an
+internal A–Z letter) with no global uncertainty instruction improved seed 7
+from 40 moves/tile 16 to 49 moves/tile 32 in one fixed run, at p50 325 ms.
+Moving state into session instructions did not show a distinct advantage over
+that change. Adding largest-tile, empty-cell, and last-move annotations as one
+bundle regressed the same seed to 40 moves/tile 16 and p50 351 ms, so it was
+not adopted. An internal `choice + rationale` schema matched the normal mode's
+first ten moves but raised single-request p50 from about 328 ms to about
+1,397 ms; it was also not adopted.

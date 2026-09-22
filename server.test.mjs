@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { budgetState, decisionQuestions, decorateAnswers, defaultStateBudget, formatInstructions, letterOptions, responseSchema, validateRequest } from "./server.mjs";
+import { budgetState, choiceOptions, decisionQuestions, decorateAnswers, defaultStateBudget, formatInstructions, responseSchema, validateRequest } from "./server.mjs";
 
 const questions = {
   route: { type: "choice", instructions: "Which team owns this?", criteria: { billing: "Payments", support: "Technical issues" } },
@@ -23,7 +23,7 @@ test("accepts the documented 1 through 26 Choice subset", () => {
   const one = { only: "The only option" };
   const twentySix = Object.fromEntries(Array.from({ length: 26 }, (_, index) => [`opt_${index}`, `Option ${index}`]));
   assert.doesNotThrow(() => validateRequest({ model: "jev-latest", state: {}, questions: { one: { type: "choice", instructions: ["Pick one"], criteria: one }, many: { type: "choice", instructions: { context: "x", task: "Pick one" }, criteria: twentySix } } }));
-  assert.equal(letterOptions(twentySix).at(-1).letter, "Z");
+  assert.equal(choiceOptions(twentySix).at(-1).key, "opt_25");
 });
 test("uses the documented state-budget environment variable names", () => {
   assert.deepEqual(defaultStateBudget, { max_array_items: 16, max_string_chars: 160, max_object_keys: 32, max_depth: 6, max_bytes: 2048 });
@@ -59,13 +59,11 @@ test("tightens array and string caps until the byte budget fits", () => {
   assert.ok(stats.budgeted_bytes <= 400, `budgeted ${stats.budgeted_bytes} bytes`);
   assert.ok(stats.limits.max_array_items < 32 || stats.limits.max_string_chars < 80);
 });
-test("maps caller criteria keys to A/B/C internally without changing the HTTP keys", () => {
-  const mapped = letterOptions({ ans0: "The grandfather", ans1: "The grandson", ans2: "Can't be determined" });
-  assert.deepEqual(mapped.map((item) => item.letter), ["A", "B", "C"]);
+test("passes caller criteria keys directly to the native schema without changing HTTP keys", () => {
+  const mapped = choiceOptions({ ans0: "The grandfather", ans1: "The grandson", ans2: "Can't be determined" });
   assert.deepEqual(mapped.map((item) => item.key), ["ans0", "ans1", "ans2"]);
   const worker = decisionQuestions({ who: { type: "choice", instructions: { passage: "Alice went home.", question: "Who went home?" }, criteria: { ans0: "Alice", ans1: "Bob", ans2: "Cannot be determined" } } });
   assert.equal(worker.who.instructions, "Passage: Alice went home.\n\nQuestion: Who went home?");
-  assert.equal(worker.who.options[2].letter, "C");
   assert.equal(worker.who.options[2].key, "ans2");
   assert.match(formatInstructions({ passage: "x", question: "y" }), /^Passage: x\n\nQuestion: y$/);
   assert.equal(formatInstructions(["first", { task: "second" }]), "first\ntask: second");

@@ -16,7 +16,7 @@ This is a shape-compatible local experiment, not a TypeSafe Jev replacement. Typ
 - `GET /health`: local health check.
 - `benchmark_request.mjs`: repeat a Jev-shaped fixture and report latency percentiles.
 
-The API receives all questions in one request and generates a constrained, simultaneous decision frame. Choice is limited to 26 options (`A`–`Z`). Internally, caller keys are mapped to A–Z and decoded back before the response is returned. Each request gets a fresh `LanguageModelSession` transcript; the state and choices live only in that request's user prompt. A single-question request constrains native output to one letter instead of a JSON object.
+The API receives all questions in one request and generates a constrained, simultaneous decision frame. Choice is limited to 26 criteria keys. Each request gets a fresh `LanguageModelSession` transcript; state, questions, and choices live only in that request's user prompt. A single-question request constrains native output directly to one caller criteria key instead of a JSON object or an A–Z intermediary.
 
 ## Requirements
 
