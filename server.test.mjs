@@ -19,6 +19,12 @@ test("rejects invalid TypeSafe shapes", () => {
   const tooMany = Object.fromEntries(Array.from({ length: 27 }, (_, index) => [`opt${index}`, `label ${index}`]));
   assert.throws(() => validateRequest({ model: "jev-latest", state: "x", questions: { route: { type: "choice", instructions: "x", criteria: tooMany } } }));
 });
+test("accepts the documented 1 through 26 Choice subset", () => {
+  const one = { only: "The only option" };
+  const twentySix = Object.fromEntries(Array.from({ length: 26 }, (_, index) => [`opt_${index}`, `Option ${index}`]));
+  assert.doesNotThrow(() => validateRequest({ model: "jev-latest", state: {}, questions: { one: { type: "choice", instructions: ["Pick one"], criteria: one }, many: { type: "choice", instructions: { context: "x", task: "Pick one" }, criteria: twentySix } } }));
+  assert.equal(letterOptions(twentySix).at(-1).letter, "Z");
+});
 test("returns Jev-shaped answers", () => {
   const answers = decorateAnswers({ route: { probabilities: { billing: 0.8, support: 0.2 } }, escalate: { noul: 0.7 }, urgency: { probabilities: { 0: 0, 1: 0.2, 2: 0.7, 3: 0.1 } } }, questions);
   assert.equal(answers.route.type, "choice"); assert.equal(answers.route.choice, "billing");
@@ -59,4 +65,5 @@ test("maps caller criteria keys to A/B/C internally without changing the HTTP ke
   assert.equal(worker.who.options[2].letter, "C");
   assert.equal(worker.who.options[2].key, "ans2");
   assert.match(formatInstructions({ passage: "x", question: "y" }), /^Passage: x\n\nQuestion: y$/);
+  assert.equal(formatInstructions(["first", { task: "second" }]), "first\ntask: second");
 });

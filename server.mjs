@@ -2,6 +2,7 @@ import http from "node:http";
 import { spawn } from "node:child_process";
 import readline from "node:readline";
 import { pathToFileURL } from "node:url";
+import { existsSync } from "node:fs";
 
 const host = process.env.HOST ?? "127.0.0.1";
 const port = Number(process.env.PORT ?? 8787);
@@ -252,7 +253,7 @@ async function decide(payload, bodyBytes) {
     const legend = Object.fromEntries(question.criteria.map((level, index) => [String(index), typeof level === "string" ? level : JSON.stringify(level)]));
     return [name, { type: "score", score: Number(choice), legend, probabilities, confidence: 1 }];
   }));
-  const performanceMetrics = { request_bytes: bodyBytes, state_bytes: budget.stats.original_bytes, budgeted_state_bytes: budget.stats.budgeted_bytes, state_truncated: budget.stats.truncated, omitted_array_items: budget.stats.omitted_array_items, worker_ms: Number(workerMs.toFixed(3)), worker_round_trip_ms: Number(roundTripMs.toFixed(3)), worker_queue_ms: Number(Math.max(0, roundTripMs - workerMs).toFixed(3)), ...questionMetrics(payload.questions) };
+  const performanceMetrics = { request_bytes: bodyBytes, state_bytes: budget.stats.original_bytes, budgeted_state_bytes: budget.stats.budgeted_bytes, state_truncated: budget.stats.truncated, omitted_array_items: budget.stats.omitted_array_items, omitted_keys: budget.stats.omitted_keys, omitted_string_chars: budget.stats.omitted_string_chars, state_budget: budget.stats.limits, worker_ms: Number(workerMs.toFixed(3)), worker_round_trip_ms: Number(roundTripMs.toFixed(3)), worker_queue_ms: Number(Math.max(0, roundTripMs - workerMs).toFixed(3)), ...questionMetrics(payload.questions) };
   return { model: "jev-local-fm-0.9", answers: nativeAnswers, usage: { input_tokens: 0, output_tokens: 0 }, metadata: { provider: "Apple Foundation Models native greedy decisions", confidence: "All probabilities are greedy point estimates, not Jev-calibrated", performance: performanceMetrics } };
 }
 
@@ -265,4 +266,11 @@ export const server = http.createServer(async (request, response) => {
   return apiError(response, 404, "Not found", "not_found_error");
 });
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) server.listen(port, host, () => console.log(`jev-local listening on http://${host}:${port} → ${fmBaseUrl}`));
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  if (!existsSync(nativeWorkerBinary)) {
+    console.error("Missing ./fm_worker. Run: npm run build");
+    process.exitCode = 1;
+  } else {
+    server.listen(port, host, () => console.log(`jev-apple-fm listening on http://${host}:${port}`));
+  }
+}

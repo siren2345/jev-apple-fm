@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build": "node scripts/build.mjs",
+    "diagnose": "node scripts/diagnose.mjs",
     "start": "node server.mjs",
     "test": "node --test server.test.mjs",
     "benchmark": "node benchmark_request.mjs",
