@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { budgetState, decisionQuestions, decorateAnswers, formatInstructions, letterOptions, responseSchema, validateRequest } from "./server.mjs";
+import { budgetState, decisionQuestions, decorateAnswers, defaultStateBudget, formatInstructions, letterOptions, responseSchema, validateRequest } from "./server.mjs";
 
 const questions = {
   route: { type: "choice", instructions: "Which team owns this?", criteria: { billing: "Payments", support: "Technical issues" } },
@@ -24,6 +24,9 @@ test("accepts the documented 1 through 26 Choice subset", () => {
   const twentySix = Object.fromEntries(Array.from({ length: 26 }, (_, index) => [`opt_${index}`, `Option ${index}`]));
   assert.doesNotThrow(() => validateRequest({ model: "jev-latest", state: {}, questions: { one: { type: "choice", instructions: ["Pick one"], criteria: one }, many: { type: "choice", instructions: { context: "x", task: "Pick one" }, criteria: twentySix } } }));
   assert.equal(letterOptions(twentySix).at(-1).letter, "Z");
+});
+test("uses the documented state-budget environment variable names", () => {
+  assert.deepEqual(defaultStateBudget, { max_array_items: 16, max_string_chars: 160, max_object_keys: 32, max_depth: 6, max_bytes: 2048 });
 });
 test("returns Jev-shaped answers", () => {
   const answers = decorateAnswers({ route: { probabilities: { billing: 0.8, support: 0.2 } }, escalate: { noul: 0.7 }, urgency: { probabilities: { 0: 0, 1: 0.2, 2: 0.7, 3: 0.1 } } }, questions);

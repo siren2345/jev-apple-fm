@@ -12,11 +12,14 @@ const nativeChoiceBinary = new URL("./fm_choice", import.meta.url).pathname;
 const nativeDecisionBinary = new URL("./fm_decide", import.meta.url).pathname;
 // Test-only injection keeps HTTP contract tests independent of Apple FM latency.
 const nativeWorkerBinary = process.env.JEV_WORKER_PATH ?? new URL("./fm_worker", import.meta.url).pathname;
-const envInt = (name, fallback) => { const value = Number(process.env[name]); return Number.isInteger(value) ? value : fallback; };
+const envInt = (name, fallback, legacyName) => {
+  const value = Number(process.env[name] ?? (legacyName ? process.env[legacyName] : undefined));
+  return Number.isInteger(value) ? value : fallback;
+};
 export const defaultStateBudget = {
-  max_array_items: envInt("JEV_STATE_MAX_ARRAY", 16),
-  max_string_chars: envInt("JEV_STATE_MAX_STRING", 160),
-  max_object_keys: envInt("JEV_STATE_MAX_KEYS", 32),
+  max_array_items: envInt("JEV_STATE_MAX_ARRAY_ITEMS", 16, "JEV_STATE_MAX_ARRAY"),
+  max_string_chars: envInt("JEV_STATE_MAX_STRING_CHARS", 160, "JEV_STATE_MAX_STRING"),
+  max_object_keys: envInt("JEV_STATE_MAX_OBJECT_KEYS", 32, "JEV_STATE_MAX_KEYS"),
   max_depth: envInt("JEV_STATE_MAX_DEPTH", 6),
   max_bytes: envInt("JEV_STATE_MAX_BYTES", 2048),
 };

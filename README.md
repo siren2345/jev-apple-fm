@@ -126,6 +126,7 @@ With the server running, replay any Jev-shaped JSON request:
 ```sh
 npm run benchmark -- fixtures/four-axis-choice.json 10
 npm run benchmark -- fixtures/large-nested-state.json 3
+npm run benchmark -- fixtures/2048-choice.json 20
 npm run eval -- tickets
 npm run eval:tickets
 npm run eval -- bbq --limit 10
@@ -139,6 +140,8 @@ The latency script prints p50/p95 without saving request content. `npm run eval`
 BBQ Age first-100, failures counted as wrong: the current fresh-session run scored **0.69** (ambiguous 0.56, disambiguated 0.82; p50 290 ms; 0 API/model errors). A prior prompt/run scored 0.66, and an earlier run scored 0.76, which illustrates that Apple FM quality can vary between runs. This is an Apple FM-specific evaluation result, not a claim of Jev-equivalent reasoning. Re-run `npm run eval -- bbq --limit 100` after prompt changes.
 
 Current small-fixture baseline: warm worker inference was approximately 719–752 ms for a 630-byte request with four questions and eight options. A 23,659-byte nested-state fixture dropped from about 5.1 s unbudgeted to 865–877 ms after the generic state budget. The same Doom encounter completed eight decisions at 1.67–2.29 s and scored one kill, but still died; it is not a real-time-game backend. See [`results/`](results/) for methodology; results depend on request size, macOS version, and hardware.
+
+For turn-based tasks, smaller structured state is materially faster. The included [`fixtures/2048-choice.json`](fixtures/2048-choice.json) is a compact 2048-style request: exponent board, valid moves, and per-move consequences, without duplicated prose or derived features. In a local 2048 harness it reduced one observed game's median decision time to about 317 ms while retaining its outcome; see [`results/2048-local-benchmark.md`](results/2048-local-benchmark.md). That is a profiling example, not a general accuracy claim or a game-specific server policy.
 
 ## Development
 
