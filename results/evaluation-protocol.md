@@ -28,10 +28,10 @@ npm run eval -- bbq --limit 100 --expect-max-errors 0
 
 Record accuracy separately for `ambig` and `disambig` conditions, latency
 p50/p95, macOS version, and hardware. The current recorded run for the
-single-letter, fresh-session prompt is 0.66 overall (0.46 ambiguous, 0.86
-disambiguated; p50 288 ms; zero API/model errors). A prior 0.76 run is kept
-as history rather than treated as a stable target. These are local Apple FM
-measurements, not release gates.
+single-letter, fresh-session prompt is 0.69 overall (0.56 ambiguous, 0.82
+disambiguated; p50 290 ms; zero API/model errors). Prior 0.66 and 0.76 runs
+are kept as history rather than treated as stable targets. These are local
+Apple FM measurements, not release gates.
 
 ## Prompt-change rule
 
