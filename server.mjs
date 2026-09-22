@@ -201,6 +201,7 @@ class NativeDecisionWorker {
   }
 }
 function formatOption(value) { return typeof value === "string" ? value : JSON.stringify(value); }
+const uncertaintyOption = /\b(can(?:not|'t) be determined|cannot answer|not answerable|undetermined|unknown|not known|uncertain|not enough (?:information|info)|insufficient information)\b|判断不能|不明|わからない|情報不足/i;
 export function formatInstructions(value) {
   if (typeof value === "string") return value;
   if (Array.isArray(value)) return value.map(formatInstructions).join("\n");
@@ -213,6 +214,11 @@ export function formatInstructions(value) {
 export function choiceOptions(criteria) {
   return Object.keys(criteria).map((key) => ({ key, text: formatOption(criteria[key]) }));
 }
+export function uncertaintyKeys(criteria) {
+  return Object.entries(criteria)
+    .filter(([key, value]) => uncertaintyOption.test(key + " " + formatOption(value)))
+    .map(([key]) => key);
+}
 export function decisionQuestions(questions) {
   return Object.fromEntries(Object.entries(questions).map(([name, question]) => {
     const criteria = question.type === "choice"
@@ -220,7 +226,11 @@ export function decisionQuestions(questions) {
       : question.type === "noul"
         ? { true: question.criteria?.true ?? "The answer is yes", false: question.criteria?.false ?? "The answer is no" }
         : Object.fromEntries(question.criteria.map((level, index) => [String(index), level]));
-    return [name, { instructions: formatInstructions(question.instructions), options: choiceOptions(criteria) }];
+    return [name, {
+      instructions: formatInstructions(question.instructions),
+      options: choiceOptions(criteria),
+      uncertainty_keys: question.type === "choice" ? uncertaintyKeys(criteria) : [],
+    }];
   }));
 }
 const nativeWorker = new NativeDecisionWorker();

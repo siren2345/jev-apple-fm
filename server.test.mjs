@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { budgetState, choiceOptions, decisionQuestions, decorateAnswers, defaultStateBudget, formatInstructions, responseSchema, validateRequest } from "./server.mjs";
+import { budgetState, choiceOptions, decisionQuestions, decorateAnswers, defaultStateBudget, formatInstructions, responseSchema, uncertaintyKeys, validateRequest } from "./server.mjs";
 
 const questions = {
   route: { type: "choice", instructions: "Which team owns this?", criteria: { billing: "Payments", support: "Technical issues" } },
@@ -66,6 +66,8 @@ test("passes caller criteria keys directly to the native schema without changing
   const worker = decisionQuestions({ who: { type: "choice", instructions: { passage: "Alice went home.", question: "Who went home?" }, criteria: { ans0: "Alice", ans1: "Bob", ans2: "Cannot be determined" } } });
   assert.equal(worker.who.instructions, "Passage: Alice went home.\n\nQuestion: Who went home?");
   assert.equal(worker.who.options[2].key, "ans2");
+  assert.deepEqual(worker.who.uncertainty_keys, ["ans2"]);
+  assert.deepEqual(uncertaintyKeys({ a: "Continue", b: "Not known" }), ["b"]);
   assert.match(formatInstructions({ passage: "x", question: "y" }), /^Passage: x\n\nQuestion: y$/);
   assert.equal(formatInstructions(["first", { task: "second" }]), "first\ntask: second");
 });
