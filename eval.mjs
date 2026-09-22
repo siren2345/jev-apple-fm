@@ -5,7 +5,7 @@ const BBQ_STATE = "Answer each question using only its accompanying passage. If 
 
 function args() {
   const argv = process.argv.slice(2);
-  const out = { bench: argv[0] ?? "tickets", limit: null, url: process.env.JEV_EVAL_URL ?? process.env.JEV_LOCAL_URL ?? "http://127.0.0.1:8787/v1/systemone", vs: process.env.JEV_EVAL_VS ?? null, out: null, timeout: 60_000 };
+  const out = { bench: argv[0] ?? "tickets", limit: null, url: process.env.JEV_EVAL_URL ?? process.env.JEV_LOCAL_URL ?? "http://127.0.0.1:8787/v1/systemone", vs: process.env.JEV_EVAL_VS ?? null, out: null, timeout: 60_000, expectMinAccuracy: null, expectMaxErrors: null };
   for (let i = 1; i < argv.length; i += 1) {
     const flag = argv[i];
     const value = argv[i + 1];
@@ -14,11 +14,15 @@ function args() {
     else if (flag === "--vs") out.vs = value;
     else if (flag === "--out") out.out = value;
     else if (flag === "--timeout-ms") out.timeout = Number(value);
+    else if (flag === "--expect-min-accuracy") out.expectMinAccuracy = Number(value);
+    else if (flag === "--expect-max-errors") out.expectMaxErrors = Number(value);
     else continue;
     i += 1;
   }
-  if (!["bbq", "tickets"].includes(out.bench)) throw new Error("Usage: node eval.mjs <bbq|tickets> [--limit N] [--url URL] [--vs URL] [--out path]");
+  if (!["bbq", "tickets"].includes(out.bench)) throw new Error("Usage: node eval.mjs <bbq|tickets> [--limit N] [--url URL] [--vs URL] [--out path] [--expect-min-accuracy 0..1] [--expect-max-errors N]");
   if (out.limit != null && (!Number.isInteger(out.limit) || out.limit < 1)) throw new Error("--limit must be a positive integer");
+  if (out.expectMinAccuracy != null && (!Number.isFinite(out.expectMinAccuracy) || out.expectMinAccuracy < 0 || out.expectMinAccuracy > 1)) throw new Error("--expect-min-accuracy must be between 0 and 1");
+  if (out.expectMaxErrors != null && (!Number.isInteger(out.expectMaxErrors) || out.expectMaxErrors < 0)) throw new Error("--expect-max-errors must be a non-negative integer");
   return out;
 }
 
@@ -127,4 +131,11 @@ console.log(JSON.stringify(summary, null, 2));
 if (options.out) {
   await mkdir(dirname(resolve(options.out)), { recursive: true });
   await writeFile(options.out, JSON.stringify(report, null, 2) + "\n");
+}
+const failures = [];
+if (options.expectMinAccuracy != null && (report.local.accuracy == null || report.local.accuracy < options.expectMinAccuracy)) failures.push(`accuracy ${report.local.accuracy ?? "n/a"} < ${options.expectMinAccuracy}`);
+if (options.expectMaxErrors != null && report.local.errors > options.expectMaxErrors) failures.push(`errors ${report.local.errors} > ${options.expectMaxErrors}`);
+if (failures.length) {
+  console.error(`Regression gate failed: ${failures.join("; ")}`);
+  process.exitCode = 1;
 }

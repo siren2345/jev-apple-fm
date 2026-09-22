@@ -40,11 +40,12 @@ node --version
 git clone https://github.com/siren2345/jev-apple-fm.git
 cd jev-apple-fm
 
-# Compile the persistent on-device decision worker.
-swiftc -parse-as-library fm_worker.swift -o fm_worker
-
 # No runtime npm packages are currently required, but this verifies Node setup.
 npm install
+
+# Check macOS/Apple Silicon/Swift/Foundation Models availability, then build.
+npm run diagnose
+npm run build
 npm start
 ```
 
@@ -100,7 +101,9 @@ The response preserves question names and Choice criteria keys:
 
 This server is shape-compatible, not behavior-identical to Jev. Each probability distribution is a greedy point estimate: the selected answer is `1`, all alternatives are `0`, and `confidence` is therefore `1`. Do not treat these values as calibrated probabilities.
 
-Before the Swift worker sees `state`, the API applies a generic budget: long strings are sliced, long arrays keep a prefix plus an `_omitted` count, objects deeper than the depth cap are replaced, and limits tighten until the serialized state fits `JEV_STATE_MAX_BYTES` (default 2048). This is not a domain-specific compressor. Disable it with `JEV_STATE_BUDGET=off`. Successful responses report `state_bytes`, `budgeted_state_bytes`, and `state_truncated` in `metadata.performance`.
+Before the Swift worker sees `state`, the API applies a generic budget: long strings are sliced, long arrays keep a prefix plus an `_omitted` count, objects deeper than the depth cap are replaced, and limits tighten until the serialized state fits `JEV_STATE_MAX_BYTES` (default 2048). This is not a domain-specific compressor. Disable it with `JEV_STATE_BUDGET=off`.
+
+The default per-value limits are 16 array items, 160 string characters, 32 object keys, and depth 6. Override them with `JEV_STATE_MAX_ARRAY_ITEMS`, `JEV_STATE_MAX_STRING_CHARS`, `JEV_STATE_MAX_OBJECT_KEYS`, `JEV_STATE_MAX_DEPTH`, and `JEV_STATE_MAX_BYTES`. Successful responses report `state_bytes`, `budgeted_state_bytes`, `state_truncated`, omitted array/key/string counts, and the effective `state_budget` in `metadata.performance`; request content itself is never logged or persisted.
 
 ## Architecture
 
@@ -124,11 +127,14 @@ With the server running, replay any Jev-shaped JSON request:
 npm run benchmark -- fixtures/four-axis-choice.json 10
 npm run benchmark -- fixtures/large-nested-state.json 3
 npm run eval -- tickets
+npm run eval:tickets
 npm run eval -- bbq --limit 10
 npm run eval -- bbq --limit 100 --out results/bbq-100.json
 ```
 
 The latency script prints p50/p95 without saving request content. `npm run eval` scores labeled cases over HTTP: `tickets` is five TypeSafe-style routing/noul items, `bbq` is the first 100 Age questions from [simonmesmith/jev-bbq-experiment](https://github.com/simonmesmith/jev-bbq-experiment) (50 ambiguous, 50 disambiguated). Use `--limit` for a faster loop. `--vs https://api.typesafe.ai/v1/systemone` compares against TypeSafe when `JEV_API_KEY` is set. Set `JEV_LOCAL_URL` to point either script at another local endpoint.
+
+`npm run eval:tickets` is the contract regression gate: it requires all five labeled TypeSafe-shaped cases to succeed and have no HTTP/model errors. Any prompt or worker change should pass this gate before being adopted. Use `--expect-min-accuracy` and `--expect-max-errors` with either benchmark to set an explicit local acceptance threshold; BBQ is tracked quality, not a Jev-equivalence claim. The complete evaluation protocol is in [`results/evaluation-protocol.md`](results/evaluation-protocol.md).
 
 BBQ Age first-100, failures counted as wrong: the single-letter schema with a fresh session scored **0.76** (ambiguous 0.70, disambiguated 0.82). This is an Apple FM-specific evaluation result, not a claim of Jev-equivalent reasoning. Re-run `npm run eval -- bbq --limit 100` after prompt changes.
 
@@ -138,7 +144,8 @@ Current small-fixture baseline: warm worker inference was approximately 719–75
 
 ```sh
 npm test
-swiftc -parse-as-library fm_worker.swift -o fm_worker
+npm run diagnose
+npm run build
 ```
 
 The API is intentionally loopback-only and unauthenticated. Keep side effects outside the model branch and validate caller input before using a returned decision.
