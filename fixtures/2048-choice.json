@@ -3,15 +3,15 @@
   "state": {
     "game": "2048",
     "board_exponents": [[1, 2, 3, 4], [5, 6, 7, 0], [9, 8, 5, 0], [10, 9, 3, 1]],
-    "valid_moves": ["down", "left", "right"]
+    "valid_moves": ["up", "down", "right"]
   },
   "questions": {
     "move": {
       "type": "choice",
       "instructions": "Play 2048. Keep the largest tile in a corner, keep rows descending toward that corner, preserve empty cells, and avoid immediate reverse moves. Choose only a valid move.",
       "criteria": {
+        "up": "Slide up: merges 0 points, about 1 empty cell afterwards",
         "down": "Slide down: merges 0 points, about 1 empty cell afterwards",
-        "left": "Slide left: merges 32 points, about 2 empty cells afterwards",
         "right": "Slide right: merges 32 points, about 2 empty cells afterwards"
       }
     }
