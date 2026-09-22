@@ -1,0 +1,26 @@
+{
+  "valid_request": {
+    "model": "jev-latest",
+    "state": { "customer": "Charged twice", "history": ["purchase", "refund request"] },
+    "questions": {
+      "route": {
+        "type": "choice",
+        "instructions": "Which team owns this?",
+        "criteria": { "billing": "Payments and refunds", "support": "Technical issue" }
+      },
+      "escalate": {
+        "type": "noul",
+        "instructions": "Should a human intervene immediately?"
+      },
+      "urgency": {
+        "type": "score",
+        "instructions": "Rate urgency.",
+        "criteria": ["Low", "Normal", "High"]
+      }
+    }
+  },
+  "invalid_requests": [
+    { "model": "jev-latest", "state": "x", "questions": {} },
+    { "model": "jev-latest", "state": "x", "questions": { "route": { "type": "choice", "instructions": "pick", "criteria": {} } } }
+  ]
+}

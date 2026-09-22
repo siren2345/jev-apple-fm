@@ -10,7 +10,8 @@ const fmBaseUrl = (process.env.FM_BASE_URL ?? "http://127.0.0.1:1976/v1").replac
 const maxBodyBytes = 1_000_000;
 const nativeChoiceBinary = new URL("./fm_choice", import.meta.url).pathname;
 const nativeDecisionBinary = new URL("./fm_decide", import.meta.url).pathname;
-const nativeWorkerBinary = new URL("./fm_worker", import.meta.url).pathname;
+// Test-only injection keeps HTTP contract tests independent of Apple FM latency.
+const nativeWorkerBinary = process.env.JEV_WORKER_PATH ?? new URL("./fm_worker", import.meta.url).pathname;
 const envInt = (name, fallback) => { const value = Number(process.env[name]); return Number.isInteger(value) ? value : fallback; };
 export const defaultStateBudget = {
   max_array_items: envInt("JEV_STATE_MAX_ARRAY", 16),
@@ -182,7 +183,9 @@ class NativeDecisionWorker {
     readline.createInterface({ input: this.child.stdout }).on("line", (line) => {
       try { const message = JSON.parse(line); const pending = this.pending.get(message.id); if (!pending) return; this.pending.delete(message.id); clearTimeout(pending.timer); message.error ? pending.reject(new Error(message.error)) : pending.resolve({ choices: message.choices, workerMs: Number(message.worker_ms), roundTripMs: Number((performance.now() - pending.started).toFixed(3)) }); } catch { /* Ignore malformed worker output. */ }
     });
-    this.child.on("exit", () => { for (const { reject, timer } of this.pending.values()) { clearTimeout(timer); reject(new Error("native decision worker exited")); } this.pending.clear(); });
+    const rejectPending = (message) => { for (const { reject, timer } of this.pending.values()) { clearTimeout(timer); reject(new Error(message)); } this.pending.clear(); };
+    this.child.on("error", (error) => rejectPending("native decision worker unavailable: " + error.message));
+    this.child.on("exit", () => rejectPending("native decision worker exited"));
   }
   decide(payload) {
     this.start();
@@ -261,7 +264,7 @@ export const server = http.createServer(async (request, response) => {
   if (request.method === "GET" && request.url === "/health") return send(response, 200, { status: "ok", fm_base_url: fmBaseUrl });
   if (request.method === "POST" && ["/v1/systemone", "/v1/decide"].includes(request.url)) {
     try { const { payload, bodyBytes } = await readJson(request); validateRequest(payload); const result = await decide(payload, bodyBytes); const p = result.metadata.performance; response.setHeader("server-timing", `fm-worker;dur=${p.worker_ms}, fm-queue;dur=${p.worker_queue_ms}`); return send(response, 200, result); }
-    catch (error) { const message = error instanceof Error ? error.message : "Unknown error"; return apiError(response, message.startsWith("fm serve") || message.includes("structured output") || message.includes("adapter validation") ? 502 : 422, message); }
+    catch (error) { const message = error instanceof Error ? error.message : "Unknown error"; return apiError(response, message.startsWith("fm serve") || message.includes("structured output") || message.includes("adapter validation") || message.includes("native decision") ? 502 : 422, message); }
   }
   return apiError(response, 404, "Not found", "not_found_error");
 });

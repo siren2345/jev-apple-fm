@@ -148,4 +148,11 @@ npm run diagnose
 npm run build
 ```
 
+`npm test` includes a fast HTTP contract suite backed by a deterministic JSONL
+worker. It checks the two endpoint names, Jev-shaped answer fields, the
+1–26 Choice boundary, generic state-budget metadata, and 4xx error shapes
+without depending on model quality or Apple FM latency. The Apple FM
+integration gate remains `npm run eval:tickets` with a built worker and a
+running local server.
+
 The API is intentionally loopback-only and unauthenticated. Keep side effects outside the model branch and validate caller input before using a returned decision.
