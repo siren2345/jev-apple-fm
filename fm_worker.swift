@@ -12,11 +12,6 @@ func emit(_ value: Any) {
     FileHandle.standardOutput.write(Data("\n".utf8))
 }
 
-func envInt(_ name: String, _ fallback: Int) -> Int {
-    guard let raw = ProcessInfo.processInfo.environment[name], let value = Int(raw), value > 0 else { return fallback }
-    return value
-}
-
 let roleInstructions = """
 You are a multiple-choice decision function.
 Pick exactly one letter from Options.
@@ -84,17 +79,7 @@ struct FMWorker {
     static func main() async {
         let model = SystemLanguageModel()
         guard model.isAvailable else { emit(["id": "startup", "error": "Foundation Models unavailable"]); return }
-        let maxTurns = envInt("JEV_SESSION_TURNS", 8)
-        var session: LanguageModelSession?
-        var turns = 0
-        func freshSession() -> LanguageModelSession {
-            let next = LanguageModelSession(model: model, instructions: roleInstructions)
-            next.prewarm()
-            session = next
-            turns = 0
-            return next
-        }
-        _ = freshSession()
+        LanguageModelSession(model: model, instructions: roleInstructions).prewarm()
         while let line = readLine() {
             guard let data = line.data(using: .utf8), let request = try? JSONSerialization.jsonObject(with: data) as? [String: Any], let id = request["id"] as? String else {
                 emit(["id": "unknown", "error": "Invalid JSONL request"]); continue
@@ -106,21 +91,20 @@ struct FMWorker {
             let started = ContinuousClock.now
             do {
                 let prompt = try userPrompt(state: request["state"] ?? "", questions: questionData, names: names)
-                if turns >= maxTurns { _ = freshSession() }
-                let active = session ?? freshSession()
+                // Keep model resources warm, but never carry a prior request's transcript.
+                let session = LanguageModelSession(model: model, instructions: roleInstructions)
                 let choices: [String: String]
                 do {
-                    choices = try await generate(session: active, prompt: prompt, questions: questionData, names: names)
+                    choices = try await generate(session: session, prompt: prompt, questions: questionData, names: names)
                 } catch {
-                    let retry = freshSession()
+                    let retry = LanguageModelSession(model: model, instructions: roleInstructions)
                     choices = try await generate(session: retry, prompt: prompt, questions: questionData, names: names)
                 }
-                turns += 1
                 let duration = started.duration(to: .now).components
                 let elapsed = Double(duration.seconds) * 1_000 + Double(duration.attoseconds) / 1e15
                 emit(["id": id, "choices": choices, "worker_ms": elapsed])
             }
-            catch { session = nil; turns = 0; emit(["id": id, "error": error.localizedDescription]) }
+            catch { emit(["id": id, "error": error.localizedDescription]) }
         }
     }
 }
