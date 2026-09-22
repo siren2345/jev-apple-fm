@@ -56,6 +56,17 @@ test("systemone preserves Jev-shaped answers and performance metadata", async ()
   assert.deepEqual(body.metadata.performance.state_budget, { max_array_items: 16, max_string_chars: 160, max_object_keys: 32, max_depth: 6, max_bytes: 2048 });
 });
 
+test("session_id reuses an isolated worker transcript", async () => {
+  const payload = { ...fixture.valid_request, session_id: "contract-session" };
+  const first = await post("/v1/systemone", payload);
+  const second = await post("/v1/systemone", payload);
+  assert.equal(first.response.status, 200);
+  assert.equal(first.body.metadata.performance.session_reused, false);
+  assert.equal(first.body.metadata.performance.session_turn, 1);
+  assert.equal(second.body.metadata.performance.session_reused, true);
+  assert.equal(second.body.metadata.performance.session_turn, 2);
+});
+
 test("decide alias and 26-choice boundary preserve caller keys", async () => {
   const criteria = Object.fromEntries(Array.from({ length: 26 }, (_, index) => [`option_${index}`, `Option ${index}`]));
   const payload = { model: "jev-latest", state: "x", questions: { pick: { type: "choice", instructions: "Pick one", criteria } } };

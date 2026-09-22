@@ -18,6 +18,11 @@ test("2048 fixture only offers legal Choice keys", () => {
   assert.ok(payload.state.valid_moves.length > 0);
 });
 
+test("2048 payload can opt into an isolated session", () => {
+  const payload = payloadFor([[2, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]], "game-7");
+  assert.equal(payload.session_id, "game-7");
+});
+
 test("checked-in 2048 fixture matches the legal moves of its board", async () => {
   const fixture = JSON.parse(await readFile(new URL("../fixtures/2048-choice.json", import.meta.url), "utf8"));
   const board = fixture.state.board_exponents.map((row) => row.map((value) => value ? 2 ** value : 0));

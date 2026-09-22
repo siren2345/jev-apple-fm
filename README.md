@@ -98,6 +98,7 @@ The response preserves question names and Choice criteria keys:
 | Calibrated probabilities | Not supported |
 | Cloud API key | Not used |
 | Generic `state` input budget | Supported; questions and Choice keys are never truncated |
+| Optional local `session_id` | Supported; bounded transcript retention for one logical interaction |
 
 This server is shape-compatible, not behavior-identical to Jev. Each probability distribution is a greedy point estimate: the selected answer is `1`, all alternatives are `0`, and `confidence` is therefore `1`. Do not treat these values as calibrated probabilities.
 
@@ -115,7 +116,9 @@ client
   -> Apple Foundation Models on-device runtime
 ```
 
-The Swift worker keeps its process and model resources warm. Each HTTP request receives a fresh `LanguageModelSession` transcript, so state from one request cannot become conversation context for another. Apple controls underlying hardware scheduling; this project targets Apple Foundation Models on Apple Silicon rather than claiming exclusive direct control of the Neural Engine.
+The Swift worker keeps its process and model resources warm. Requests without `session_id` receive a fresh `LanguageModelSession` transcript, so state from one request cannot become conversation context for another. Apple controls underlying hardware scheduling; this project targets Apple Foundation Models on Apple Silicon rather than claiming exclusive direct control of the Neural Engine.
+
+Pass an optional top-level `session_id` to retain a transcript for one logical interaction, such as a turn-based game. Sessions are local-worker-only, isolated by ID, retain at most four turns by default, and then restart automatically to bound context growth. `metadata.performance` reports `session_reused` and `session_turn`. Set `JEV_SESSION_MAX_TURNS` or `JEV_SESSION_MAX_COUNT` to tune those local limits. Omit `session_id` for the default fresh-session behavior.
 
 ## Profile and replay
 
@@ -128,6 +131,7 @@ npm run benchmark -- fixtures/four-axis-choice.json 10
 npm run benchmark -- fixtures/large-nested-state.json 3
 npm run benchmark -- fixtures/2048-choice.json 20
 npm run benchmark:2048 -- --seeds 1,7,42 --max-moves 100
+npm run benchmark:2048 -- --seeds 7 --max-moves 50 --session
 npm run eval -- tickets
 npm run eval:tickets
 npm run eval -- bbq --limit 10

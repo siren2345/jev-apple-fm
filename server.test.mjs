@@ -18,6 +18,7 @@ test("rejects invalid TypeSafe shapes", () => {
   assert.throws(() => validateRequest({ state: "x", questions }));
   const tooMany = Object.fromEntries(Array.from({ length: 27 }, (_, index) => [`opt${index}`, `label ${index}`]));
   assert.throws(() => validateRequest({ model: "jev-latest", state: "x", questions: { route: { type: "choice", instructions: "x", criteria: tooMany } } }));
+  assert.throws(() => validateRequest({ model: "jev-latest", session_id: "", state: "x", questions }));
 });
 test("accepts the documented 1 through 26 Choice subset", () => {
   const one = { only: "The only option" };

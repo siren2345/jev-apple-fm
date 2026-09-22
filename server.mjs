@@ -51,6 +51,7 @@ export function validateRequest(payload) {
   if (!isRecord(payload)) throw new Error("Request body must be an object");
   if (typeof payload.model !== "string" || payload.model.length === 0) throw new Error("model is required and must be a string");
   if (!isStructured(payload.state)) throw new Error("state is required and must be a string, object, or array");
+  if (payload.session_id !== undefined && (typeof payload.session_id !== "string" || payload.session_id.length === 0 || payload.session_id.length > 128)) throw new Error("session_id must be a non-empty string of at most 128 characters");
   if (!isRecord(payload.questions) || Object.keys(payload.questions).length === 0) throw new Error("questions must be a non-empty object");
   for (const [name, question] of Object.entries(payload.questions)) validateQuestion(name, question);
 }
@@ -184,7 +185,7 @@ class NativeDecisionWorker {
     if (this.child?.exitCode === null) return;
     this.child = spawn(nativeWorkerBinary, [], { stdio: ["pipe", "pipe", "pipe"] });
     readline.createInterface({ input: this.child.stdout }).on("line", (line) => {
-      try { const message = JSON.parse(line); const pending = this.pending.get(message.id); if (!pending) return; this.pending.delete(message.id); clearTimeout(pending.timer); message.error ? pending.reject(new Error(message.error)) : pending.resolve({ choices: message.choices, workerMs: Number(message.worker_ms), roundTripMs: Number((performance.now() - pending.started).toFixed(3)) }); } catch { /* Ignore malformed worker output. */ }
+      try { const message = JSON.parse(line); const pending = this.pending.get(message.id); if (!pending) return; this.pending.delete(message.id); clearTimeout(pending.timer); message.error ? pending.reject(new Error(message.error)) : pending.resolve({ choices: message.choices, workerMs: Number(message.worker_ms), roundTripMs: Number((performance.now() - pending.started).toFixed(3)), sessionReused: message.session_reused === true, sessionTurn: Number(message.session_turn ?? 0) }); } catch { /* Ignore malformed worker output. */ }
     });
     const rejectPending = (message) => { for (const { reject, timer } of this.pending.values()) { clearTimeout(timer); reject(new Error(message)); } this.pending.clear(); };
     this.child.on("error", (error) => rejectPending("native decision worker unavailable: " + error.message));
@@ -195,7 +196,7 @@ class NativeDecisionWorker {
     return new Promise((resolve, reject) => {
       const id = String(++this.nextId); const timer = setTimeout(() => { this.pending.delete(id); reject(new Error("native decision timed out")); }, 30_000);
       this.pending.set(id, { resolve, reject, timer, started: performance.now() });
-      this.child.stdin.write(JSON.stringify({ id, state: payload.state, questions: decisionQuestions(payload.questions) }) + "\n");
+      this.child.stdin.write(JSON.stringify({ id, session_id: payload.session_id, state: payload.state, questions: decisionQuestions(payload.questions) }) + "\n");
     });
   }
 }
@@ -238,13 +239,13 @@ function decodeChoices(choices, questions) {
   }
   return decoded;
 }
-async function chooseKeys(state, questions) {
-  const { choices, workerMs, roundTripMs } = await nativeWorker.decide({ state, questions });
-  return { keys: decodeChoices(choices, questions), workerMs, roundTripMs };
+async function chooseKeys(state, questions, sessionId) {
+  const { choices, workerMs, roundTripMs, sessionReused, sessionTurn } = await nativeWorker.decide({ state, questions, session_id: sessionId });
+  return { keys: decodeChoices(choices, questions), workerMs, roundTripMs, sessionReused, sessionTurn };
 }
 async function decide(payload, bodyBytes) {
   const budget = budgetState(payload.state);
-  const { keys: decoded, workerMs, roundTripMs } = await chooseKeys(budget.state, payload.questions);
+  const { keys: decoded, workerMs, roundTripMs, sessionReused, sessionTurn } = await chooseKeys(budget.state, payload.questions, payload.session_id);
   const nativeAnswers = Object.fromEntries(Object.entries(payload.questions).map(([name, question]) => {
     const criteria = question.type === "choice"
       ? question.criteria
@@ -258,7 +259,7 @@ async function decide(payload, bodyBytes) {
     const legend = Object.fromEntries(question.criteria.map((level, index) => [String(index), typeof level === "string" ? level : JSON.stringify(level)]));
     return [name, { type: "score", score: Number(choice), legend, probabilities, confidence: 1 }];
   }));
-  const performanceMetrics = { request_bytes: bodyBytes, state_bytes: budget.stats.original_bytes, budgeted_state_bytes: budget.stats.budgeted_bytes, state_truncated: budget.stats.truncated, omitted_array_items: budget.stats.omitted_array_items, omitted_keys: budget.stats.omitted_keys, omitted_string_chars: budget.stats.omitted_string_chars, state_budget: budget.stats.limits, worker_ms: Number(workerMs.toFixed(3)), worker_round_trip_ms: Number(roundTripMs.toFixed(3)), worker_queue_ms: Number(Math.max(0, roundTripMs - workerMs).toFixed(3)), ...questionMetrics(payload.questions) };
+  const performanceMetrics = { request_bytes: bodyBytes, state_bytes: budget.stats.original_bytes, budgeted_state_bytes: budget.stats.budgeted_bytes, state_truncated: budget.stats.truncated, omitted_array_items: budget.stats.omitted_array_items, omitted_keys: budget.stats.omitted_keys, omitted_string_chars: budget.stats.omitted_string_chars, state_budget: budget.stats.limits, worker_ms: Number(workerMs.toFixed(3)), worker_round_trip_ms: Number(roundTripMs.toFixed(3)), worker_queue_ms: Number(Math.max(0, roundTripMs - workerMs).toFixed(3)), session_reused: sessionReused, session_turn: sessionTurn, ...questionMetrics(payload.questions) };
   return { model: "jev-local-fm-0.9", answers: nativeAnswers, usage: { input_tokens: 0, output_tokens: 0 }, metadata: { provider: "Apple Foundation Models native greedy decisions", confidence: "All probabilities are greedy point estimates, not Jev-calibrated", performance: performanceMetrics } };
 }
 

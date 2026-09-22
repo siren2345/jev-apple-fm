@@ -63,3 +63,13 @@ bundle regressed the same seed to 40 moves/tile 16 and p50 351 ms, so it was
 not adopted. An internal `choice + rationale` schema matched the normal mode's
 first ten moves but raised single-request p50 from about 328 ms to about
 1,397 ms; it was also not adopted.
+
+## Bounded session experiment
+
+An optional `session_id` retains an isolated Foundation Models transcript. An
+unbounded 24-turn session exceeded the interactive benchmark timeout. Resetting
+after four turns gave a useful compromise: seed 7 reached 144 points/tile 32
+after 24 moves and 324 points/tile 32 after 50 moves, at roughly 534–536 ms
+p50. The equivalent fresh 24-turn run scored 56 points/tile 8. This is a
+single-seed signal rather than a solver-quality claim; the default remains a
+fresh session unless the caller supplies `session_id`.
